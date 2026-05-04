@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume 7 ISF 셰이더 가이드</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">한국어</a>
+<a href="isf-guide.en.html">English</a>
+</div>
+<h2>홈</h2>
+<a href="../README.ko.html">← 인덱스</a>
+<h2>목차</h2>
+<a class="depth-2" href="#1-isf-파일-형태">1. ISF 파일 형태</a>
+<a class="depth-2" href="#2-파일-위치">2. 파일 위치</a>
+<a class="depth-2" href="#3-isf-json-최상위-필드">3. ISF JSON 최상위 필드</a>
+<a class="depth-2" href="#4-inputs-파라미터-타입">4. INPUTS — 파라미터 타입</a>
+<a class="depth-3" href="#예시">예시</a>
+<a class="depth-3" href="#기타-입력-속성">기타 입력 속성</a>
+<a class="depth-2" href="#5-자동-선언되는-유니폼">5. 자동 선언되는 유니폼</a>
+<a class="depth-2" href="#6-샘플링-함수">6. 샘플링 함수</a>
+<a class="depth-2" href="#7-passes-다중-패스-셰이더">7. PASSES — 다중 패스 셰이더</a>
+<a class="depth-2" href="#8-imported-이미지">8. IMPORTED 이미지</a>
+<a class="depth-2" href="#9-effect-source-transition-컨벤션">9. Effect / Source / Transition 컨벤션</a>
+<a class="depth-3" href="#effect-클립에-적용되는-필터">Effect (클립에 적용되는 필터)</a>
+<a class="depth-3" href="#source-제너레이터-입력-클립-없음">Source (제너레이터, 입력 클립 없음)</a>
+<a class="depth-3" href="#transition-두-클립-사이-ab">Transition (두 클립 사이, A→B)</a>
+<a class="depth-2" href="#10-버텍스-셰이더-드물게-필요">10. 버텍스 셰이더 (드물게 필요)</a>
+<a class="depth-2" href="#11-오디오-리액티브">11. 오디오 리액티브</a>
+<a class="depth-2" href="#12-glsl-shadertoy-isf-포팅">12. GLSL / Shadertoy → ISF 포팅</a>
+<a class="depth-2" href="#13-워크플로-팁">13. 워크플로 팁</a>
+<a class="depth-2" href="#14-자주-하는-실수">14. 자주 하는 실수</a>
+<a class="depth-2" href="#15-최소-템플릿">15. 최소 템플릿</a>
+<a class="depth-3" href="#source-애니메이션-그라디언트">Source: 애니메이션 그라디언트</a>
+<a class="depth-3" href="#effect-픽셀화">Effect: 픽셀화</a>
+<a class="depth-3" href="#transition-디졸브">Transition: 디졸브</a>
+<a class="depth-2" href="#출처">출처</a>
+</aside>
+<main>
+<h1>Resolume 7 ISF 셰이더 가이드</h1>
+<div class="meta">ISF 2.0 / Resolume 7.8+ · 2026-04-30 (ISF 스펙으로 검증)</div>
+<p>ISF (Interactive Shader Format)는 JSON 메타데이터가 앞에 붙은 GLSL 프래그먼트 셰이더 포맷. Resolume Avenue/Arena 7.8+가 네이티브로 로드. <strong>C++ 빌드, SDK 불필요</strong> — <code>.fs</code> 파일을 적절한 폴더에 떨어뜨리면 Resolume이 자동 인식. 프래그먼트 셰이더로 표현 가능한 비주얼이라면 ISF가 정답.</p>
+<p>오디오 액세스, 호스트 영속 상태, 셰이더 외 로직이 필요하면 <a href="../ffgl/ffgl-guide.ko.html">FFGL</a> 사용.</p>
+<hr>
+<h2 id="1-isf-파일-형태">1. ISF 파일 형태</h2>
+<p>ISF는 단일 <code>.fs</code> 파일 — 맨 위에 JSON 메타데이터(GLSL 다중행 주석으로 감쌈), 그 아래에 GLSL 프래그먼트 셰이더 코드:</p>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "입력 이미지에 색조 입힘",
+    "CREDIT": "your name",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Color"],
+    "INPUTS": [
+        { "NAME": "inputImage", "TYPE": "image" },
+        { "NAME": "tint", "TYPE": "color", "DEFAULT": [1.0, 0.5, 0.5, 1.0] }
+    ]
+}*/
+
+void main() {
+    vec4 src = IMG_THIS_PIXEL(inputImage);
+    gl_FragColor = src * tint;
+}</code></pre>
+<p>세 가지 규칙:</p>
+<ol>
+<li><strong>JSON 블록은 반드시 맨 앞</strong>, <code>/*{ ... }*/</code>로 감쌈.</li>
+<li><strong><code>IMG_PIXEL</code> / <code>IMG_NORM_PIXEL</code> 사용</strong> — GLSL의 <code>texture2D</code> / <code>texture</code> 대신.</li>
+<li><strong>출력은 <code>gl_FragColor</code></strong> (스펙은 GLSL 1.10 스타일).</li>
+</ol>
+<hr>
+<h2 id="2-파일-위치">2. 파일 위치</h2>
+<table>
+<thead><tr>
+<th>플랫폼</th>
+<th>경로</th>
+</tr></thead><tbody>
+<tr>
+<td>Resolume 사용자 폴더</td>
+<td><code>~/Documents/Resolume Arena/Sources/</code> 또는 <code>~/Documents/Resolume Arena/Effects/</code></td>
+</tr>
+<tr>
+<td>Windows 등가</td>
+<td><code>%USERPROFILE%\Documents\Resolume Arena\Sources\</code> (또는 <code>Effects\</code>)</td>
+</tr>
+<tr>
+<td>크로스앱 ISF 폴더 (mac)</td>
+<td><code>~/Library/Graphics/ISF/</code></td>
+</tr>
+<tr>
+<td>크로스앱 ISF 폴더 (win)</td>
+<td><code>%PROGRAMDATA%\ISF\</code></td>
+</tr>
+</tbody></table>
+<p>Resolume의 <code>Sources/</code>에 두면 Source로, <code>Effects/</code>에 두면 Effect로 표시.</p>
+<blockquote><strong>크로스앱 <code>ISF</code> 폴더</strong>(<code>~/Library/Graphics/ISF/</code>, <code>%PROGRAMDATA%\ISF\</code>)는 Vidvox/ISF 커뮤니티 컨벤션 — VDMX, MadMapper 등 다른 ISF 호스트가 공유. Resolume도 실제로 읽지만 공식 스캔 경로로 문서화하지는 않음. 확실하게 하려면 Resolume의 제품별 <code>Sources/Effects</code> 폴더에 복사본을 둘 것.</blockquote>
+<blockquote><strong>Source인지 Effect인지는 INPUTS이 결정.</strong> Resolume은 INPUTS를 보고 판단: - <code>inputImage</code> 없음 → <strong>Source</strong> - <code>inputImage</code>라는 이름의 <code>image</code> 입력 1개 → <strong>Effect</strong> - <code>startImage</code>와 <code>endImage</code> 이미지 입력 2개 + <code>progress</code> float → <strong>Transition</strong></blockquote>
+<hr>
+<h2 id="3-isf-json-최상위-필드">3. ISF JSON 최상위 필드</h2>
+<table>
+<thead><tr>
+<th>필드</th>
+<th>필수</th>
+<th>설명</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ISFVSN</code></td>
+<td>예</td>
+<td>스펙 버전. <code>"2.0"</code> 사용</td>
+</tr>
+<tr>
+<td><code>DESCRIPTION</code></td>
+<td>아니오</td>
+<td>Resolume에 표시되는 설명</td>
+</tr>
+<tr>
+<td><code>CREDIT</code></td>
+<td>아니오</td>
+<td>저작자</td>
+</tr>
+<tr>
+<td><code>CATEGORIES</code></td>
+<td>아니오</td>
+<td>문자열 배열, 예: <code>["Color", "Stylize"]</code></td>
+</tr>
+<tr>
+<td><code>INPUTS</code></td>
+<td>아니오</td>
+<td>입력 파라미터 객체 배열 (§4)</td>
+</tr>
+<tr>
+<td><code>PASSES</code></td>
+<td>아니오</td>
+<td>다중 패스 렌더링 (§7)</td>
+</tr>
+<tr>
+<td><code>IMPORTED</code></td>
+<td>아니오</td>
+<td>셰이더와 함께 로드할 외부 이미지</td>
+</tr>
+<tr>
+<td><code>VSN</code></td>
+<td>아니오</td>
+<td>이 셰이더 파일 자체의 버전</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="4-inputs-파라미터-타입">4. INPUTS — 파라미터 타입</h2>
+<p><code>INPUTS</code>의 각 항목은 <code>NAME</code>과 <code>TYPE</code> 필수. 대부분 <code>LABEL</code>, <code>DEFAULT</code>, <code>MIN</code>, <code>MAX</code>, <code>IDENTITY</code>도 지원.</p>
+<table>
+<thead><tr>
+<th>TYPE</th>
+<th>GLSL 유니폼</th>
+<th>Resolume UI</th>
+<th>DEFAULT 형식</th>
+</tr></thead><tbody>
+<tr>
+<td><code>event</code></td>
+<td><code>bool</code></td>
+<td>모멘터리 버튼</td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>bool</code></td>
+<td>토글</td>
+<td><code>true</code> / <code>false</code></td>
+</tr>
+<tr>
+<td><code>long</code></td>
+<td><code>int</code></td>
+<td>드롭다운 — <code>VALUES</code>와 <code>LABELS</code> 배열 필요</td>
+<td>정수</td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td><code>float</code></td>
+<td>슬라이더 — <code>MIN</code>/<code>MAX</code> 사용</td>
+<td>숫자</td>
+</tr>
+<tr>
+<td><code>point2D</code></td>
+<td><code>vec2</code></td>
+<td>XY 패드 — <code>MIN</code>/<code>MAX</code>는 2-원소 배열</td>
+<td><code>[x, y]</code></td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td><code>vec4</code></td>
+<td>컬러 피커 — <code>MIN</code>/<code>MAX</code>/<code>DEFAULT</code>는 4-원소 배열</td>
+<td><code>[r, g, b, a]</code></td>
+</tr>
+<tr>
+<td><code>image</code></td>
+<td><code>sampler2D</code></td>
+<td>이미지 입력</td>
+<td>(없음)</td>
+</tr>
+<tr>
+<td><code>audio</code></td>
+<td><code>sampler2D</code></td>
+<td>오디오 파형(이미지로 패킹)</td>
+<td>(없음)</td>
+</tr>
+<tr>
+<td><code>audioFFT</code></td>
+<td><code>sampler2D</code></td>
+<td>FFT 처리된 오디오</td>
+<td>(없음)</td>
+</tr>
+</tbody></table>
+<h3 id="예시">예시</h3>
+<pre><code class="lang-json">{ "NAME": "amount", "TYPE": "float", "MIN": 0.0, "MAX": 2.0, "DEFAULT": 1.0 }
+
+{ "NAME": "center", "TYPE": "point2D",
+  "MIN": [0.0, 0.0], "MAX": [1.0, 1.0], "DEFAULT": [0.5, 0.5] }
+
+{ "NAME": "blendMode", "TYPE": "long",
+  "VALUES": [0, 1, 2], "LABELS": ["Add", "Multiply", "Screen"], "DEFAULT": 0 }
+
+{ "NAME": "tint", "TYPE": "color",
+  "DEFAULT": [1.0, 1.0, 1.0, 1.0] }</code></pre>
+<p>선언하면 셰이더에서 그 이름의 유니폼으로 사용 가능.</p>
+<h3 id="기타-입력-속성">기타 입력 속성</h3>
+<ul>
+<li><strong><code>LABEL</code></strong> — 호스트 UI에 표시되는 이름 (NAME은 GLSL 식별자로 유지).</li>
+<li><strong><code>IDENTITY</code></strong> — "이펙트 없음"으로 간주할 값. 사용자가 리셋했을 때 호스트가 깔끔히 바이패스하는 데 사용.</li>
+<li><strong><code>MAX</code></strong> on <code>audio</code> / <code>audioFFT</code> — 오디오 샘플 수 또는 FFT 빈 수의 힌트:</li>
+</ul>
+<pre><code class="lang-json">{ "NAME": "audioFFT", "TYPE": "audioFFT", "MAX": 64 }</code></pre>
+<hr>
+<h2 id="5-자동-선언되는-유니폼">5. 자동 선언되는 유니폼</h2>
+<p>ISF가 자동 선언 — 다시 선언하지 말 것:</p>
+<table>
+<thead><tr>
+<th>이름</th>
+<th>타입</th>
+<th>의미</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RENDERSIZE</code></td>
+<td><code>vec2</code></td>
+<td>출력 픽셀 크기</td>
+</tr>
+<tr>
+<td><code>TIME</code></td>
+<td><code>float</code></td>
+<td>셰이더 시작 후 경과 초</td>
+</tr>
+<tr>
+<td><code>TIMEDELTA</code></td>
+<td><code>float</code></td>
+<td>직전 프레임 이후 경과 초 (첫 프레임 0)</td>
+</tr>
+<tr>
+<td><code>FRAMEINDEX</code></td>
+<td><code>int</code></td>
+<td>프레임 카운터, 0부터</td>
+</tr>
+<tr>
+<td><code>DATE</code></td>
+<td><code>vec4</code></td>
+<td>(년, 월, 일, 그날의 초)</td>
+</tr>
+<tr>
+<td><code>PASSINDEX</code></td>
+<td><code>int</code></td>
+<td>현재 패스 (PASSES 없으면 0)</td>
+</tr>
+<tr>
+<td><code>isf_FragNormCoord</code></td>
+<td><code>vec2</code></td>
+<td>현재 프래그먼트의 정규화 좌표 0..1 (원점: 좌하단)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-샘플링-함수">6. 샘플링 함수</h2>
+<p><code>texture2D</code> 쓰지 말고 다음을 사용:</p>
+<table>
+<thead><tr>
+<th>함수</th>
+<th>시그니처</th>
+<th>용도</th>
+</tr></thead><tbody>
+<tr>
+<td><code>IMG_PIXEL</code></td>
+<td><code>vec4 IMG_PIXEL(image, vec2 pixelCoord)</code></td>
+<td>정수 픽셀 좌표로 샘플</td>
+</tr>
+<tr>
+<td><code>IMG_NORM_PIXEL</code></td>
+<td><code>vec4 IMG_NORM_PIXEL(image, vec2 normCoord)</code></td>
+<td>0..1 정규화 좌표로 샘플</td>
+</tr>
+<tr>
+<td><code>IMG_THIS_PIXEL</code></td>
+<td><code>vec4 IMG_THIS_PIXEL(image)</code></td>
+<td>현재 프래그먼트의 픽셀 좌표로 샘플</td>
+</tr>
+<tr>
+<td><code>IMG_THIS_NORM_PIXEL</code></td>
+<td><code>vec4 IMG_THIS_NORM_PIXEL(image)</code></td>
+<td>현재 프래그먼트의 정규화 좌표로 샘플</td>
+</tr>
+<tr>
+<td><code>IMG_SIZE</code></td>
+<td><code>vec2 IMG_SIZE(image)</code></td>
+<td>이미지의 픽셀 크기</td>
+</tr>
+</tbody></table>
+<pre><code class="lang-glsl">// 그대로 통과
+gl_FragColor = IMG_THIS_NORM_PIXEL(inputImage);
+
+// 왼쪽 10px 샘플
+vec2 here = gl_FragCoord.xy;
+gl_FragColor = IMG_PIXEL(inputImage, here - vec2(10.0, 0.0));</code></pre>
+<hr>
+<h2 id="7-passes-다중-패스-셰이더">7. PASSES — 다중 패스 셰이더</h2>
+<p>피드백이나 다운샘플링이 필요한 이펙트엔 <code>PASSES</code>로 중간 버퍼에 렌더:</p>
+<pre><code class="lang-json">"PASSES": [
+    {
+        "TARGET": "lastFrame",
+        "PERSISTENT": true,
+        "FLOAT": true
+    },
+    { }
+]</code></pre>
+<table>
+<thead><tr>
+<th>필드</th>
+<th>설명</th>
+</tr></thead><tbody>
+<tr>
+<td><code>TARGET</code></td>
+<td>버퍼 이름. <code>IMG_NORM_PIXEL</code>로 읽을 수 있는 sampler2D가 됨</td>
+</tr>
+<tr>
+<td><code>PERSISTENT</code></td>
+<td><code>true</code>면 프레임 간 버퍼 유지 (피드백)</td>
+</tr>
+<tr>
+<td><code>FLOAT</code></td>
+<td><code>true</code>면 32비트 float 저장 (HDR / 누적)</td>
+</tr>
+<tr>
+<td><code>WIDTH</code></td>
+<td>옵션 표현식. <code>$WIDTH</code>, <code>$HEIGHT</code>, 그리고 <strong>입력 이름</strong>을 <code>$inputName</code>으로 참조 가능 (예: <code>"$WIDTH * $scale"</code>)</td>
+</tr>
+<tr>
+<td><code>HEIGHT</code></td>
+<td>옵션 — WIDTH와 동일 규칙</td>
+</tr>
+</tbody></table>
+<p>셰이더 안에서 <code>PASSINDEX</code>로 현재 패스 확인:</p>
+<pre><code class="lang-glsl">void main() {
+    if (PASSINDEX == 0) {
+        // "lastFrame"에 기록 — 다음 프레임을 위해 저장
+        gl_FragColor = IMG_THIS_NORM_PIXEL(inputImage);
+    } else {
+        // 최종 패스: 현재와 이전 합성
+        vec4 cur  = IMG_THIS_NORM_PIXEL(inputImage);
+        vec4 prev = IMG_THIS_NORM_PIXEL(lastFrame);
+        gl_FragColor = mix(prev, cur, 0.1); // 모션 트레일
+    }
+}</code></pre>
+<p>빈 마지막 패스 <code>{ }</code>는 화면에 출력.</p>
+<hr>
+<h2 id="8-imported-이미지">8. IMPORTED 이미지</h2>
+<p>LUT나 노이즈 텍스처 같은 정적 이미지 번들:</p>
+<pre><code class="lang-json">"IMPORTED": {
+    "noiseTex": { "PATH": "noise.png" }
+}</code></pre>
+<p><code>noiseTex</code>가 sampler로 사용 가능. <code>noise.png</code>를 <code>.fs</code> 파일 옆에 둘 것.</p>
+<hr>
+<h2 id="9-effect-source-transition-컨벤션">9. Effect / Source / Transition 컨벤션</h2>
+<p>Resolume은 INPUTS로 셰이더의 종류를 결정:</p>
+<h3 id="effect-클립에-적용되는-필터">Effect (클립에 적용되는 필터)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "inputImage", "TYPE": "image" },
+    { "NAME": "amount", "TYPE": "float", "DEFAULT": 0.5 }
+]</code></pre>
+<h3 id="source-제너레이터-입력-클립-없음">Source (제너레이터, 입력 클립 없음)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "color", "TYPE": "color", "DEFAULT": [1, 1, 1, 1] }
+]</code></pre>
+<h3 id="transition-두-클립-사이-ab">Transition (두 클립 사이, A→B)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "startImage", "TYPE": "image" },
+    { "NAME": "endImage",   "TYPE": "image" },
+    { "NAME": "progress",   "TYPE": "float", "MIN": 0.0, "MAX": 1.0, "DEFAULT": 0.0 }
+]</code></pre>
+<hr>
+<h2 id="10-버텍스-셰이더-드물게-필요">10. 버텍스 셰이더 (드물게 필요)</h2>
+<p>99%의 프래그먼트 전용 이펙트는 기본 버텍스 셰이더로 충분. 정말 필요하면 <code>.fs</code>와 같은 이름에 <code>.vs</code> 확장자. <code>main()</code> 첫 줄은 반드시:</p>
+<pre><code class="lang-glsl">void main() {
+    isf_vertShaderInit();
+    // ... 커스텀 로직
+}</code></pre>
+<p>Resolume Wire(노드 기반 patcher, 7.26+에서 활발히 개발 중)는 2D만 다루기 때문에 버텍스 셰이더 미지원. Avenue/Arena는 완전 지원.</p>
+<hr>
+<h2 id="11-오디오-리액티브">11. 오디오 리액티브</h2>
+<p>오디오 데이터를 텍스처로 받는 두 가지 입력 타입:</p>
+<pre><code class="lang-json">{ "NAME": "audio",    "TYPE": "audio" },
+{ "NAME": "audioFFT", "TYPE": "audioFFT" }</code></pre>
+<p>이미지처럼 샘플. 텍스처 너비 = 샘플 수(파형) 또는 주파수 빈 수(FFT). 높이는 채널 수.</p>
+<pre><code class="lang-glsl">// 빈 평균 FFT 진폭
+float energy = 0.0;
+int bins = int(IMG_SIZE(audioFFT).x);
+for (int i = 0; i &lt; bins; i++) {
+    float u = float(i) / float(bins);
+    energy += IMG_NORM_PIXEL(audioFFT, vec2(u, 0.5)).r;
+}
+energy /= float(bins);</code></pre>
+<hr>
+<h2 id="12-glsl-shadertoy-isf-포팅">12. GLSL / Shadertoy → ISF 포팅</h2>
+<p>자주 바꿔야 하는 것:</p>
+<table>
+<thead><tr>
+<th>GLSL / Shadertoy</th>
+<th>ISF</th>
+</tr></thead><tbody>
+<tr>
+<td><code>mainImage(out vec4 fragColor, in vec2 fragCoord)</code></td>
+<td><code>void main()</code> + <code>gl_FragColor</code></td>
+</tr>
+<tr>
+<td><code>iResolution.xy</code></td>
+<td><code>RENDERSIZE</code></td>
+</tr>
+<tr>
+<td><code>iTime</code></td>
+<td><code>TIME</code></td>
+</tr>
+<tr>
+<td><code>iFrame</code></td>
+<td><code>FRAMEINDEX</code></td>
+</tr>
+<tr>
+<td><code>iChannel0</code></td>
+<td><code>image</code> 입력 선언, <code>IMG_NORM_PIXEL</code>로 샘플</td>
+</tr>
+<tr>
+<td><code>texture(iChannel0, uv)</code></td>
+<td><code>IMG_NORM_PIXEL(inputImage, uv)</code></td>
+</tr>
+<tr>
+<td><code>fragCoord / iResolution.xy</code></td>
+<td><code>isf_FragNormCoord</code></td>
+</tr>
+</tbody></table>
+<p>최종 출력은 <code>gl_FragColor.a = 1.0</code> (또는 적절한 알파)를 명시 — Resolume 컴포지터의 아티팩트 방지.</p>
+<hr>
+<h2 id="13-워크플로-팁">13. 워크플로 팁</h2>
+<ol>
+<li><strong>저장하면 Resolume이 리로드</strong> — 클립이 셰이더를 사용 중이면 즉시 반영. 편집-저장-확인 루프가 빠름.</li>
+<li><strong>ISF 에디터</strong>(https://editor.isf.video) — 브라우저에서 ISF를 즉시 렌더. 가장 빠른 반복 환경. 여기서 동작하면 Resolume에서도 그대로 동작.</li>
+<li><strong>에러는 Resolume 로그</strong>. UI엔 GLSL 컴파일 에러 안 표시. <code>~/Library/Logs/Resolume Arena/</code> (mac) 또는 <code>%LOCALAPPDATA%\Resolume Arena\Logs\</code> (win) 확인.</li>
+<li><strong><code>.vs</code>가 정말 필요하기 전엔 프래그먼트 전용</strong>. 멋진 이펙트 대부분이 프래그먼트만으로 가능.</li>
+<li><strong><code>LABEL</code> 활용</strong> — <code>NAME</code>은 GLSL 식별자(공백 불가), <code>LABEL</code>이 사용자에게 보이는 이름.</li>
+</ol>
+<hr>
+<h2 id="14-자주-하는-실수">14. 자주 하는 실수</h2>
+<ol>
+<li><strong><code>inputImage</code> 미선언</strong> → Resolume이 Source로 인식. Effect로 만들려면 정확히 <code>inputImage</code>라는 이름의 <code>image</code> 입력 추가.</li>
+<li><strong>빌트인 이름과 충돌</strong> — 입력 이름을 <code>TIME</code>, <code>RENDERSIZE</code> 등으로 짓지 말 것.</li>
+<li><strong>Source인데 <code>gl_FragColor.a = 1.0</code> 누락</strong> → 합성 시 가장자리 이상.</li>
+<li><strong>JSON 파싱 에러</strong> → 셰이더가 조용히 로드 실패. JSON 검증 필수, 후행 쉼표 금지.</li>
+<li><strong>퍼시스턴트 버퍼 안 살아남음</strong> → <code>PERSISTENT: true</code> 확인, 매 프레임 그 버퍼로 렌더하는지도 확인.</li>
+<li><strong>좌표 원점 혼동</strong> — <code>isf_FragNormCoord</code>는 <strong>좌하단 원점</strong>. Shadertoy(좌상단)에서 포팅했다면 <code>y</code> 뒤집힘.</li>
+</ol>
+<hr>
+<h2 id="15-최소-템플릿">15. 최소 템플릿</h2>
+<h3 id="source-애니메이션-그라디언트">Source: 애니메이션 그라디언트</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Time-warped gradient",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Generator"],
+    "INPUTS": [
+        { "NAME": "speed", "TYPE": "float", "MIN": 0.0, "MAX": 5.0, "DEFAULT": 1.0 }
+    ]
+}*/
+void main() {
+    vec2 uv = isf_FragNormCoord;
+    float t = TIME * speed;
+    gl_FragColor = vec4(
+        0.5 + 0.5 * sin(uv.x * 6.0 + t),
+        0.5 + 0.5 * sin(uv.y * 6.0 + t * 1.3),
+        0.5 + 0.5 * sin((uv.x + uv.y) * 4.0 + t * 0.7),
+        1.0
+    );
+}</code></pre>
+<h3 id="effect-픽셀화">Effect: 픽셀화</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Pixelate",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Stylize"],
+    "INPUTS": [
+        { "NAME": "inputImage", "TYPE": "image" },
+        { "NAME": "size", "TYPE": "float", "MIN": 1.0, "MAX": 64.0, "DEFAULT": 8.0 }
+    ]
+}*/
+void main() {
+    vec2 grid = floor(gl_FragCoord.xy / size) * size + vec2(size * 0.5);
+    gl_FragColor = IMG_PIXEL(inputImage, grid);
+}</code></pre>
+<h3 id="transition-디졸브">Transition: 디졸브</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Crossfade",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Transition"],
+    "INPUTS": [
+        { "NAME": "startImage", "TYPE": "image" },
+        { "NAME": "endImage",   "TYPE": "image" },
+        { "NAME": "progress",   "TYPE": "float", "MIN": 0.0, "MAX": 1.0, "DEFAULT": 0.0 }
+    ]
+}*/
+void main() {
+    vec4 a = IMG_THIS_NORM_PIXEL(startImage);
+    vec4 b = IMG_THIS_NORM_PIXEL(endImage);
+    gl_FragColor = mix(a, b, progress);
+}</code></pre>
+<hr>
+<h2 id="출처">출처</h2>
+<ul>
+<li><a href="https://docs.isf.video">docs.isf.video</a> — 공식 ISF 문서</li>
+<li><a href="https://docs.isf.video/quickstart.html">docs.isf.video/quickstart.html</a> — 빠른 시작</li>
+<li><a href="https://docs.isf.video/ref_json.html">docs.isf.video/ref_json.html</a> — JSON 레퍼런스</li>
+<li><a href="https://docs.isf.video/ref_variables.html">docs.isf.video/ref_variables.html</a> — 빌트인 변수</li>
+<li><a href="https://docs.isf.video/ref_functions.html">docs.isf.video/ref_functions.html</a> — 헬퍼 함수</li>
+<li><a href="https://docs.isf.video/ref_converting.html">docs.isf.video/ref_converting.html</a> — 일반 GLSL 포팅</li>
+<li><a href="https://github.com/mrRay/ISF_Spec">github.com/mrRay/ISF_Spec</a> — 스펙 원본</li>
+<li><a href="https://editor.isf.video">editor.isf.video</a> — 브라우저 에디터</li>
+<li><a href="https://resolume.com/support/en/isf">resolume.com/support/en/isf</a> — Resolume ISF 지원 페이지</li>
+</ul>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume Wire — 패치 개발 가이드</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">한국어</a>
+<a href="wire-guide.en.html">English</a>
+</div>
+<h2>홈</h2>
+<a href="../README.ko.html">← 인덱스</a>
+<h2>목차</h2>
+<a class="depth-2" href="#1-wire가-만들어내는-것">1. Wire가 만들어내는 것</a>
+<a class="depth-2" href="#2-셋업과-버전-요구사항">2. 셋업과 버전 요구사항</a>
+<a class="depth-2" href="#3-세-가지-노드-카테고리">3. 세 가지 노드 카테고리</a>
+<a class="depth-2" href="#4-flow-타입-세-가지-연결-스타일">4. Flow 타입 — 세 가지 연결 스타일</a>
+<a class="depth-2" href="#5-데이터-타입">5. 데이터 타입</a>
+<a class="depth-2" href="#6-템플릿-source-effect-mixer">6. 템플릿: Source / Effect / Mixer</a>
+<a class="depth-2" href="#7-파라미터와-dashboard">7. 파라미터와 Dashboard</a>
+<a class="depth-2" href="#8-wire-안의-isf">8. Wire 안의 ISF</a>
+<a class="depth-2" href="#9-osc">9. OSC</a>
+<a class="depth-2" href="#10-midi">10. MIDI</a>
+<a class="depth-2" href="#11-오디오-리액티브">11. 오디오 리액티브</a>
+<a class="depth-2" href="#12-자주-쓰는-ui-단축키">12. 자주 쓰는 UI 단축키</a>
+<a class="depth-2" href="#13-패널-한눈에">13. 패널 한눈에</a>
+<a class="depth-2" href="#14-저장과-배포">14. 저장과 배포</a>
+<a class="depth-2" href="#15-버전-타임라인-wire-7x-하이라이트">15. 버전 타임라인 (Wire 7.x 하이라이트)</a>
+<a class="depth-2" href="#16-워크플로-팁">16. 워크플로 팁</a>
+<a class="depth-2" href="#17-자주-하는-실수">17. 자주 하는 실수</a>
+<a class="depth-2" href="#18-wire-vs-ffgl-vs-isf-언제-무엇을">18. Wire vs FFGL vs ISF — 언제 무엇을</a>
+<a class="depth-2" href="#출처">출처</a>
+</aside>
+<main>
+<h1>Resolume Wire — 패치 개발 가이드</h1>
+<div class="meta">Wire 7.26 (Arena/Avenue 7.4+ 필요) · 2026-04-30</div>
+<p><strong>Resolume Wire</strong>는 노드 기반 비주얼 프로그래밍 환경. 결과물은 패치(patch)로, Resolume Arena/Avenue에 커스텀 <strong>Source</strong>, <strong>Effect</strong>, <strong>Mixer</strong>로 로드하거나 단독 실행 가능. <a href="../ffgl/ffgl-guide.ko.html">FFGL</a>(C++)과 <a href="../isf/isf-guide.ko.html">ISF</a>(셰이더 전용) 옆의 세 번째 저작 경로. Wire는 "로직 + 그래픽" 라우트 — 제너레이터, 수학, 모듈레이션, ISF 셰이더, OSC/MIDI 입력, 오디오 리액티브를 한 패치에서 C++ 없이 결합.</p>
+<blockquote>Wire는 Arena/Avenue 인스톨러에 무료 트라이얼로 동봉. 워터마크 없는 배포 가능한 패치를 만들려면 Wire 라이선스(€399, Arena/Avenue와 별도) 필요. 단, Juicebar 라이선스 패치는 최종 사용자가 Wire 없이 실행 가능.</blockquote>
+<hr>
+<h2 id="1-wire가-만들어내는-것">1. Wire가 만들어내는 것</h2>
+<p>Wire <strong>패치</strong>는 디스크에 두 형식 중 하나로 저장되는 자기 완결적 그래프:</p>
+<table>
+<thead><tr>
+<th>확장자</th>
+<th>편집 가능</th>
+<th>용도</th>
+</tr></thead><tbody>
+<tr>
+<td><code>.wired</code></td>
+<td>✅</td>
+<td>소스 형식. Wire가 있는 사용자가 열어 수정 가능.</td>
+</tr>
+<tr>
+<td><code>.cwired</code></td>
+<td>❌</td>
+<td>컴파일/잠김. Arena/Avenue가 로드 (또는 Juicebar 키만 있으면 Wire 없이도).</td>
+</tr>
+</tbody></table>
+<p><code>~/Documents/Resolume Arena/Sources/</code>(또는 <code>Effects/</code>)에 떨어뜨린 패치는 ISF/FFGL 플러그인처럼 Resolume의 소스/이펙트 피커에 나타남. 패치의 <strong>템플릿</strong>(Source / Effect / Mixer)이 호스트에 어떻게 노출될지 결정.</p>
+<hr>
+<h2 id="2-셋업과-버전-요구사항">2. 셋업과 버전 요구사항</h2>
+<table>
+<thead><tr>
+<th>항목</th>
+<th>값</th>
+</tr></thead><tbody>
+<tr>
+<td>최소 Resolume</td>
+<td>7.4</td>
+</tr>
+<tr>
+<td>최신 검증</td>
+<td>Wire 7.26</td>
+</tr>
+<tr>
+<td>기본 설치 (mac)</td>
+<td><code>/Applications/Resolume Wire.app</code></td>
+</tr>
+<tr>
+<td>기본 설치 (win)</td>
+<td><code>C:\Program Files\Resolume Wire\</code></td>
+</tr>
+<tr>
+<td>사용자 패치 폴더</td>
+<td><code>~/Documents/Resolume Wire/Patches/</code></td>
+</tr>
+<tr>
+<td>Wire 기본 OSC 포트</td>
+<td><strong>8081</strong> (Arena/Avenue는 8080)</td>
+</tr>
+</tbody></table>
+<p>Wire는 Arena/Avenue와 함께 설치됨. 단독 또는 비-Juicebar 배포에서 워터마크를 없애려면 Wire 라이선스 별도 구매.</p>
+<hr>
+<h2 id="3-세-가지-노드-카테고리">3. 세 가지 노드 카테고리</h2>
+<table>
+<thead><tr>
+<th>카테고리</th>
+<th>용도</th>
+<th>예시</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Input</strong></td>
+<td>외부 데이터를 패치로 가져오기</td>
+<td><code>Texture Input</code>, <code>Trigger Input</code>, <code>Number Input</code>, <code>Color In</code>, <code>OSC In</code>, <code>MIDI In</code>, <code>FFT In</code></td>
+</tr>
+<tr>
+<td><strong>Output</strong></td>
+<td>패치 데이터를 외부로 보내기</td>
+<td><code>Texture Output</code>, <code>OSC Out</code>, <code>MIDI Out</code></td>
+</tr>
+<tr>
+<td><strong>Processor</strong></td>
+<td>계산, 변형, 믹싱, 모듈레이션</td>
+<td><code>Add</code>, <code>Mix</code>, <code>Sample Texture</code>, <code>ISF</code>, <code>Mesh Render</code>, <code>Text Render</code>, <code>Kaleidoscope</code>, <code>Gaussian Blur</code></td>
+</tr>
+<tr>
+<td><strong>Comment</strong></td>
+<td>문서 전용 — 인렛/아웃렛 없음</td>
+<td><code>Comment</code> ("fill" 토글 끄면 섹션 구분선)</td>
+</tr>
+</tbody></table>
+<p>Input 노드는 동시에 패치의 <strong>파라미터</strong> — Dashboard에 노출하면 Arena/Avenue 컨트롤 패널에 슬라이더/토글/컬러로 표시됨.</p>
+<hr>
+<h2 id="4-flow-타입-세-가지-연결-스타일">4. Flow 타입 — 세 가지 연결 스타일</h2>
+<p>모든 인렛/아웃렛에는 데이터가 언제 와이어를 건너는지를 결정하는 <strong>flow 타입</strong>이 있음. 노드의 모양으로 구분:</p>
+<table>
+<thead><tr>
+<th>모양</th>
+<th>Flow</th>
+<th>전송 시점</th>
+</tr></thead><tbody>
+<tr>
+<td>⬤ 원</td>
+<td><strong>Signal</strong></td>
+<td>매 프레임 (프레임레이트 기반). 기본 — 거의 모든 게 시그널.</td>
+</tr>
+<tr>
+<td>▮ 사각</td>
+<td><strong>Event</strong></td>
+<td>사용자가 트리거할 때만. 프레임레이트와 무관.</td>
+</tr>
+<tr>
+<td>◆ 다이아몬드</td>
+<td><strong>Attribute</strong></td>
+<td>패치 (재)컴파일 시에만. 정적 설정용, 애니메이션 불가.</td>
+</tr>
+</tbody></table>
+<p><strong>Attribute는 애니메이션 불가</strong> — 그게 포인트. 런타임 값으로 구동하려면 먼저 시그널로 변환할 것.</p>
+<hr>
+<h2 id="5-데이터-타입">5. 데이터 타입</h2>
+<p>Wire는 연결에 타입이 있음. 타입 불일치 와이어는 자동 변환되거나 연결 거부됨. 자주 쓰는 타입:</p>
+<table>
+<thead><tr>
+<th>타입</th>
+<th>메모</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Number</code></td>
+<td>단일 float</td>
+</tr>
+<tr>
+<td><code>Vec2</code>, <code>Vec3</code>, <code>Vec4</code></td>
+<td>컴포넌트 벡터. <code>Make Vec2</code> / <code>Unpack</code>으로 패킹/언패킹</td>
+</tr>
+<tr>
+<td><code>Color</code></td>
+<td>1급 컬러 타입 (7.20에서 추가). <code>Color from RGB</code>, <code>Color from HSB</code>로 변환. 호환 이펙트는 직접 받음: Hue Rotate, Greyscale, AddSubtract, Bright.Contrast</td>
+</tr>
+<tr>
+<td><code>Texture</code></td>
+<td>GPU 텍스처 — Texture Input/Output이 운반</td>
+</tr>
+<tr>
+<td><code>Array</code></td>
+<td>값 리스트</td>
+</tr>
+<tr>
+<td><code>Shape</code></td>
+<td>패스 / 2D 셰이프 지오메트리</td>
+</tr>
+<tr>
+<td><code>Trigger</code></td>
+<td>이벤트 플로 시그널</td>
+</tr>
+<tr>
+<td><code>String</code></td>
+<td>텍스트 — Text Render와 OSC 주소에 사용</td>
+</tr>
+</tbody></table>
+<p>Wire는 데이터 타입별로 와이어 색상을 다르게 표시. 정확한 팔레트는 Preferences → Wire → Color Types에서 설정 (7.20에서 정비됨).</p>
+<hr>
+<h2 id="6-템플릿-source-effect-mixer">6. 템플릿: Source / Effect / Mixer</h2>
+<p>새 패치 만들 때 시작 화면에서 템플릿 선택. 템플릿이 결정하는 것:</p>
+<ul>
+<li>Arena/Avenue의 Sources / Effects 중 어디 표시될지</li>
+<li>어떤 입출력 노드가 미리 배선될지</li>
+<li>호스트가 제공할 텍스처 입력 수</li>
+</ul>
+<table>
+<thead><tr>
+<th>템플릿</th>
+<th>미리 배선된 입력</th>
+<th>Arena/Avenue 위치</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Source</strong></td>
+<td>없음</td>
+<td>Sources 패널 (제너레이터)</td>
+</tr>
+<tr>
+<td><strong>Effect</strong></td>
+<td><code>Texture Input</code> 1개 (아래 클립)</td>
+<td>클립/레이어/그룹의 이펙트 체인</td>
+</tr>
+<tr>
+<td><strong>Mixer</strong></td>
+<td>텍스처 입력 2개 (A와 B)</td>
+<td>레이어 믹서 / 트랜지션</td>
+</tr>
+</tbody></table>
+<p><strong>Compile for Resolume</strong>을 누르면 결과 <code>.cwired</code>(또는 <code>.wired</code>)가 <code>~/Documents/Resolume Arena/Sources/</code>(또는 <code>Effects/</code>)에 생성되며 빌트인 소스처럼 트리거됨.</p>
+<hr>
+<h2 id="7-파라미터와-dashboard">7. 파라미터와 Dashboard</h2>
+<p>Arena/Avenue에 노출할 파라미터는 <strong>Dashboard</strong> 탭에 배치. 각 Input 노드에 "show in dashboard" 토글이 있음. Dashboard 순서가 Arena/Avenue 파라미터 패널 순서와 일치.</p>
+<p><strong>파라미터 그룹 (Wire 7.21+).</strong> Dashboard 톱니바퀴 메뉴에서 입력 그룹 생성. Arena/Avenue에서 <strong>접을 수 있는 섹션</strong>으로 표시됨.</p>
+<p><strong>프리셋.</strong> <strong>P</strong> 아이콘으로 프리셋 상태 저장. 컴파일된 패치에 프리셋 번들됨. 최종 사용자는 Arena/Avenue 프리셋 리스트에서 봄. "Default" 슬롯은 저장된 패치 상태용으로 예약.</p>
+<hr>
+<h2 id="8-wire-안의-isf">8. Wire 안의 ISF</h2>
+<p><strong>ISF 노드</strong>로 ISF 프래그먼트 셰이더를 패치 안의 노드로 작성/로드. 셰이더의 <code>INPUTS</code>이 노드의 인렛으로 자동 노출 — float은 Number 인렛, color는 Color 인렛, image는 Texture 인렛.</p>
+<blockquote><strong>Wire는 2D 전용.</strong> ISF 버텍스 셰이더 사용 불가. <code>.fs</code>는 OK, 짝지은 <code>.vs</code>는 무시됨. 3D 메시 렌더링은 <code>Mesh Render</code> 등의 노드 사용.</blockquote>
+<p>JSON 메타데이터 형식과 빌트인 유니폼은 <a href="../isf/isf-guide.ko.html">ISF 가이드</a> 참조.</p>
+<hr>
+<h2 id="9-osc">9. OSC</h2>
+<p>Wire는 OSC를 완전 양방향 지원. 관련 노드:</p>
+<table>
+<thead><tr>
+<th>노드</th>
+<th>용도</th>
+</tr></thead><tbody>
+<tr>
+<td><code>OSC In</code></td>
+<td>포트 UDP 리스너 열기</td>
+</tr>
+<tr>
+<td><code>Read OSC</code></td>
+<td>특정 주소 값 수신</td>
+</tr>
+<tr>
+<td><code>OSC Out</code></td>
+<td>host:port로 UDP 송신 열기</td>
+</tr>
+<tr>
+<td><code>Write OSC</code></td>
+<td>주소로 값 송신</td>
+</tr>
+</tbody></table>
+<p><strong>셋업.</strong> Wire → Preferences (Ctrl/Cmd + ,) → OSC에서 <strong>OSC Input</strong> 활성, 수신 포트 설정. Wire 기본 OSC 포트 <strong>8081</strong>. <strong>Use Bundles</strong> 토글로 메시지 패킹.</p>
+<p><strong>자주 쓰는 패턴.</strong></p>
+<ul>
+<li>TouchOSC 페이더 수신: <code>OSC In :8081</code> → <code>Read OSC /1/fader1</code> → Number 시그널 구동.</li>
+<li>패치 상태를 Ableton/외부 앱으로 송신: 시그널 → <code>Write OSC /myparam</code> → <code>OSC Out 192.168.1.10:9001</code>.</li>
+</ul>
+<hr>
+<h2 id="10-midi">10. MIDI</h2>
+<p>MIDI도 동일 패턴: <code>MIDI In</code>, <code>Read MIDI Note</code>, <code>Read MIDI CC</code>, <code>MIDI Out</code>, <code>Write MIDI Note</code>, <code>Write MIDI CC</code>. Wire가 호스트로서 다른 DAW에 MIDI 송신도 가능.</p>
+<hr>
+<h2 id="11-오디오-리액티브">11. 오디오 리액티브</h2>
+<p>플러그인으로 동작 중일 때 Wire가 호스트(Arena/Avenue)로부터 오디오 수신:</p>
+<ul>
+<li><strong>FFT 입력</strong> — 주파수 도메인 빈, 배열로 전달.</li>
+<li><strong>오디오 샘플 입력</strong> — 원시 파형.</li>
+<li><code>Sample Texture</code>, <code>Average</code>, <code>Smooth</code> 등과 결합해 에너지/비트 추출.</li>
+</ul>
+<p>단독 Wire는 시스템 오디오 디바이스를 탭해 테스트 가능.</p>
+<hr>
+<h2 id="12-자주-쓰는-ui-단축키">12. 자주 쓰는 UI 단축키</h2>
+<table>
+<thead><tr>
+<th>동작</th>
+<th>단축키</th>
+</tr></thead><tbody>
+<tr>
+<td>캔버스 패닝</td>
+<td>Space + 드래그, 또는 휠 버튼</td>
+</tr>
+<tr>
+<td>줌</td>
+<td>휠 스크롤, 또는 Ctrl/⌘ + <code>+</code> / <code>-</code></td>
+</tr>
+<tr>
+<td>화면에 맞춤</td>
+<td>Ctrl/⌘ + <code>0</code></td>
+</tr>
+<tr>
+<td>100% 줌</td>
+<td>Ctrl/⌘ + <code>1</code></td>
+</tr>
+<tr>
+<td>모두 선택</td>
+<td>Ctrl/⌘ + <code>A</code></td>
+</tr>
+<tr>
+<td>사용 안 한 노드 선택</td>
+<td>Ctrl/⌘ + Shift + <code>A</code></td>
+</tr>
+<tr>
+<td>자동 정렬</td>
+<td>Ctrl/⌘ + <code>L</code></td>
+</tr>
+<tr>
+<td>복제</td>
+<td>Ctrl/⌘ + <code>D</code> (또는 Alt + 드래그)</td>
+</tr>
+<tr>
+<td>이름 변경</td>
+<td>Ctrl/⌘ + Shift + <code>R</code></td>
+</tr>
+<tr>
+<td>노드 검색</td>
+<td>Ctrl + F (win) / ⌘ + F (mac)</td>
+</tr>
+<tr>
+<td>복사 / 붙여넣기</td>
+<td>Ctrl/⌘ + <code>C</code> / <code>V</code> (자르기는 <code>X</code>)</td>
+</tr>
+<tr>
+<td>공유용 복사</td>
+<td>우클릭 → 포럼에 붙여넣을 수 있는 텍스트로 출력</td>
+</tr>
+<tr>
+<td>연결/노드 삭제</td>
+<td>Backspace 또는 Delete</td>
+</tr>
+</tbody></table>
+<p>우클릭 <strong>Insert Node Before / After Current</strong> (7.24에서 추가)로 연결 자동 재배선 — 긴 체인 중간에 필터를 넣을 때 필수.</p>
+<hr>
+<h2 id="13-패널-한눈에">13. 패널 한눈에</h2>
+<table>
+<thead><tr>
+<th>패널</th>
+<th>역할</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Library</strong></td>
+<td>검색 가능한 노드 브라우저. 캔버스로 드래그하거나, 빈 캔버스를 더블클릭해 검색 팝업 열기</td>
+</tr>
+<tr>
+<td><strong>Monitor</strong></td>
+<td>선택된 노드 출력의 라이브 미리보기. 핀 고정 가능</td>
+</tr>
+<tr>
+<td><strong>Patch</strong></td>
+<td>패치 메타데이터: 이름, 설명, 카테고리, 해상도, 비트뎁스, 라이선스 정보</td>
+</tr>
+<tr>
+<td><strong>Node</strong></td>
+<td>선택 노드의 파라미터 (인렛 값, 인스턴스 수, 색상, 데이터타입)</td>
+</tr>
+<tr>
+<td><strong>Resources</strong></td>
+<td>패치가 참조하는 외부 파일(이미지, ISF, 비디오). <strong>Consolidate</strong>로 패치 옆에 번들</td>
+</tr>
+<tr>
+<td><strong>Notes</strong></td>
+<td>자유 메모 패널 (7.24에서 추가) — 패치 내 문서화</td>
+</tr>
+<tr>
+<td><strong>Log</strong></td>
+<td>에러, 경고, <code>Print</code> 노드 출력</td>
+</tr>
+<tr>
+<td><strong>Dashboard</strong></td>
+<td>파라미터 순서/그룹화, Arena/Avenue 노출 토글</td>
+</tr>
+<tr>
+<td><strong>Patch Navigator</strong></td>
+<td>큰 패치를 미니맵 스타일로 빠르게 탐색 (7.24에서 추가)</td>
+</tr>
+<tr>
+<td><strong>Stats</strong></td>
+<td>노드별 CPU/GPU 부하 — 이름/카테고리/부하/버전으로 정렬</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="14-저장과-배포">14. 저장과 배포</h2>
+<pre><code>File → Save                  # .wired 작성
+File → Compile for Resolume  # .cwired (잠김) → Arena/Avenue의 Sources/Effects 폴더에 작성
+File → Consolidate           # 패치 + 모든 리소스를 폴더로 번들</code></pre>
+<p><strong>컴파일 다이얼로그 옵션:</strong></p>
+<ul>
+<li><strong>Editable</strong> — 켜면 Wire가 있는 수신자가 열어 수정 가능. 끄면 <code>.cwired</code> (잠김, 리소스 접근 불가).</li>
+<li><strong>Compile for Juicebar</strong> — 라이선스 게이트 빌드 생성. 최종 사용자는 Juicebar 라이선스 구매; Wire는 라이선스가 유효하지 않으면 워터마크 주입.</li>
+</ul>
+<p><strong>포럼 공유.</strong> 노드 선택 → 우클릭 → <strong>Copy For Sharing</strong> → 결과 텍스트를 메시지에 붙여넣기. 수신자가 Wire에 붙여넣으면 노드가 재구성됨. 단, 외부 리소스(이미지, ISF 파일)는 Copy For Sharing에 <strong>포함되지 않음</strong> — 그래프만.</p>
+<p><strong>Juicebar 마켓플레이스</strong> <a href="https://get-juicebar.com/wire">get-juicebar.com/wire</a> — Wire 패치 판매용 Resolume 공식 스토어프론트.</p>
+<hr>
+<h2 id="15-버전-타임라인-wire-7x-하이라이트">15. 버전 타임라인 (Wire 7.x 하이라이트)</h2>
+<table>
+<thead><tr>
+<th>버전</th>
+<th>주요 추가</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>7.20</strong></td>
+<td>1급 Color 타입 도입. Color from RGB / HSB, Analogous / Complementary 팔레트 노드, Sample Texture 노드. Hardware Stats 패널 (FPS / GPU / CPU / RAM). Node Stats 패널 (노드별 부하). Ctrl+F 노드 검색. 수학: sqrt, radians, pi, phi, tau. 튜토리얼 섹션 정비.</td>
+</tr>
+<tr>
+<td><strong>7.21</strong></td>
+<td>Dashboard 파라미터 그룹화 — 그룹이 Arena/Avenue에서 접을 수 있는 섹션으로 표시. Transform Widget.</td>
+</tr>
+<tr>
+<td><strong>7.23</strong></td>
+<td>파라미터 애니메이션 프리셋. 성능 개선. 새/개선된 Wire 노드.</td>
+</tr>
+<tr>
+<td><strong>7.24</strong></td>
+<td>Patch Navigator 패널, Notes 패널, Insert Node Before/After Current Node, 검색 팝업 미리보기. 새 노드: Kaleidoscope, Gaussian Blur, Cylindrical / Spherical Coordinate 도구, Stable Sort.</td>
+</tr>
+<tr>
+<td><strong>7.26</strong></td>
+<td>10비트 컬러 출력, 속도 수정.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="16-워크플로-팁">16. 워크플로 팁</h2>
+<ol>
+<li><strong>입력 먼저, 출력 마지막.</strong> <code>Texture Input</code>(Effect/Mixer)과 <code>Texture Output</code>을 먼저 깔고, 나머지를 사이에 끼움.</li>
+<li><strong><code>Comment</code> 노드를 적극 활용.</strong> "fill" 끄면 라벨 달린 섹션 구분선이 됨 — 미래의 자신이 고마워함.</li>
+<li><strong><code>Print</code>가 디버거.</strong> 시그널을 Print에 연결해 Log 패널에서 값 확인.</li>
+<li><strong>Monitor에 핀을 박아라.</strong> 핵심 노드를 핀 고정하면 선택과 무관하게 라이브 출력 확인 가능.</li>
+<li><strong>Arena/Avenue에서 일찍 테스트.</strong> 초안 <code>.cwired</code> 컴파일해 로드 — 호스트의 프레임레이트와 오디오 컨텍스트가 Wire 단독 미리보기와 다름.</li>
+<li><strong>공유 전에 Consolidate.</strong> 리소스를 패치 폴더에 복사하고 경로를 재작성해 협업자의 broken-link 보고를 방지.</li>
+<li><strong>타입과 싸우지 말 것.</strong> 와이어가 안 연결되면 monkey-patching 대신 변환 노드(<code>Make Vec2</code>, <code>Color from RGB</code>, <code>Texture from Color</code>)를 찾을 것.</li>
+<li><strong>그룹은 일찍.</strong> Dashboard 파라미터가 6개를 넘으면 그룹 생성 (Wire 7.21+) — 안 그러면 Arena/Avenue UI가 금방 어수선해짐.</li>
+</ol>
+<hr>
+<h2 id="17-자주-하는-실수">17. 자주 하는 실수</h2>
+<ol>
+<li><strong>컴파일은 됐는데 Arena/Avenue에 안 보임.</strong> 올바른 폴더에 컴파일됐는지 확인 (Source 템플릿이면 <code>Sources</code>, Effect면 <code>Effects</code>). 복사 후 Resolume 재시작 — 스캔은 시작 시에만.</li>
+<li><strong>출력에 워터마크.</strong> Wire 라이선스가 없거나, Juicebar로 배포하면서 Juicebar 컴파일을 활성화하지 않음.</li>
+<li><strong>버텍스 셰이더 무시됨.</strong> Wire의 ISF 노드는 프래그먼트 전용 (Wire는 2D). 3D 로직은 <code>Mesh Render</code> 노드로.</li>
+<li><strong>OSC 메시지 안 옴.</strong> 보통 세 가지: 방화벽(특히 Windows), 잘못된 포트(Wire 기본 8081, Arena 8080 아님), 또는 송신자가 <code>localhost</code>인데 Wire는 다른 머신에 있음. Wire의 OSC Input 로그로 패킷 도착 확인.</li>
+<li><strong>Attribute 애니메이션 안 됨.</strong> 의도된 동작 — attribute는 컴파일 타임 전용. signal-flow 입력 사용.</li>
+<li><strong>파라미터가 Arena/Avenue에 안 보임.</strong> Input 노드의 "show in dashboard" 토글 꺼져 있거나, 잘못된 제품 확인 중 (Source vs Effect 템플릿).</li>
+<li><strong>다른 머신에서 리소스 누락.</strong> 공유 전 <strong>Consolidate</strong> 안 함. File → Consolidate 실행 — 이미지/ISF 파일을 패치 폴더에 복사하고 경로 재작성.</li>
+</ol>
+<hr>
+<h2 id="18-wire-vs-ffgl-vs-isf-언제-무엇을">18. Wire vs FFGL vs ISF — 언제 무엇을</h2>
+<table>
+<thead><tr>
+<th>필요</th>
+<th>도구</th>
+</tr></thead><tbody>
+<tr>
+<td>프래그먼트 셰이더 하나, 추가 로직 없음</td>
+<td>ISF</td>
+</tr>
+<tr>
+<td>여러 프리미티브 + 수학 + 오디오 리액티브로 구성된 절차적 비주얼</td>
+<td><strong>Wire</strong></td>
+</tr>
+<tr>
+<td>커스텀 OpenGL 파이프라인 / 셰이더 외 CPU 작업 / 호스트 영속 상태</td>
+<td>FFGL (C++)</td>
+</tr>
+<tr>
+<td>Wire 없는 최종 사용자에게 판매</td>
+<td>FFGL 또는 Juicebar 통한 <code>.cwired</code></td>
+</tr>
+<tr>
+<td>빌드 시스템 없는 빠른 프로토타입</td>
+<td>ISF 또는 Wire (단일 셰이더 이상이면 Wire)</td>
+</tr>
+<tr>
+<td>손튜닝된 GL로 최대 성능</td>
+<td>FFGL</td>
+</tr>
+</tbody></table>
+<p>Wire는 패치가 시스템일 때 강력 — 여러 소스 결합, 오디오 리액티브, 최종 사용자가 조작할 파라미터 그룹. 순수 셰이더 실험은 ISF에 머물러도 됨; 인스톨러 동봉용 프로덕션급 컴파일된 이펙트는 FFGL.</p>
+<hr>
+<h2 id="출처">출처</h2>
+<ul>
+<li><a href="https://resolume.com/software/wire">resolume.com/software/wire</a> — 제품 페이지</li>
+<li><a href="https://resolume.com/support/en/wire-introduction">resolume.com/support/en/wire-introduction</a> — 공식 소개</li>
+<li><a href="https://resolume.com/support/en/wire-node-anatomy">resolume.com/support/en/wire-node-anatomy</a> — 노드 구조</li>
+<li><a href="https://resolume.com/support/en/wire-data-flow">resolume.com/support/en/wire-data-flow</a> — flow 타입</li>
+<li><a href="https://resolume.com/support/en/wire-user-interface">resolume.com/support/en/wire-user-interface</a> — UI 레퍼런스</li>
+<li><a href="https://resolume.com/support/en/wire-osc">resolume.com/support/en/wire-osc</a> — OSC 통합</li>
+<li><a href="https://resolume.com/support/en/wire-saving-consolidating">resolume.com/support/en/wire-saving-consolidating</a> — 파일 형식과 배포</li>
+<li><a href="https://resolume.com/blog/24094">resolume.com/blog/24094</a> — 7.20 Color Types 릴리스</li>
+<li><a href="https://resolume.com/blog/24836">resolume.com/blog/24836</a> — 7.21 파라미터 그룹화</li>
+<li><a href="https://resolume.com/blog/30807">resolume.com/blog/30807</a> — 7.23 릴리스</li>
+<li><a href="https://get-juicebar.com/wire">get-juicebar.com/wire</a> — Wire 패치 마켓플레이스</li>
+<li><a href="https://github.com/YaNesyTortiK/WirePatches">github.com/YaNesyTortiK/WirePatches</a> — 커뮤니티 패치</li>
+</ul>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume Wire — Patch Development Guide</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">English</a>
+<a href="wire-guide.ko.html">한국어</a>
+</div>
+<h2>Home</h2>
+<a href="../README.en.html">← Index</a>
+<h2>Contents</h2>
+<a class="depth-2" href="#1-what-wire-produces">1. What Wire produces</a>
+<a class="depth-2" href="#2-setup-and-version-requirements">2. Setup and version requirements</a>
+<a class="depth-2" href="#3-the-three-node-categories">3. The three node categories</a>
+<a class="depth-2" href="#4-flow-types-three-connection-styles">4. Flow types — three connection styles</a>
+<a class="depth-2" href="#5-data-types">5. Data types</a>
+<a class="depth-2" href="#6-templates-source-effect-mixer">6. Templates: Source / Effect / Mixer</a>
+<a class="depth-2" href="#7-parameters-the-dashboard">7. Parameters &amp; the Dashboard</a>
+<a class="depth-2" href="#8-isf-inside-wire">8. ISF inside Wire</a>
+<a class="depth-2" href="#9-osc">9. OSC</a>
+<a class="depth-2" href="#10-midi">10. MIDI</a>
+<a class="depth-2" href="#11-audio-reactivity">11. Audio reactivity</a>
+<a class="depth-2" href="#12-useful-ui-shortcuts">12. Useful UI shortcuts</a>
+<a class="depth-2" href="#13-panels-at-a-glance">13. Panels at a glance</a>
+<a class="depth-2" href="#14-saving-and-distribution">14. Saving and distribution</a>
+<a class="depth-2" href="#15-version-timeline-wire-7x-highlights">15. Version timeline (Wire 7.x highlights)</a>
+<a class="depth-2" href="#16-workflow-tips">16. Workflow tips</a>
+<a class="depth-2" href="#17-common-pitfalls">17. Common pitfalls</a>
+<a class="depth-2" href="#18-when-to-use-wire-vs-ffgl-vs-isf">18. When to use Wire vs FFGL vs ISF</a>
+<a class="depth-2" href="#sources">Sources</a>
+</aside>
+<main>
+<h1>Resolume Wire — Patch Development Guide</h1>
+<div class="meta">Wire 7.26 (requires Arena/Avenue 7.4+) · 2026-04-30</div>
+<p><strong>Resolume Wire</strong> is a node-based visual programming environment that produces patches you can load in Resolume Arena and Avenue as custom <strong>Sources</strong>, <strong>Effects</strong>, or <strong>Mixers</strong> — or run standalone. It's the third authoring path alongside <a href="../ffgl/ffgl-guide.en.html">FFGL</a> (C++) and <a href="../isf/isf-guide.en.html">ISF</a> (shader-only). Wire is the "logic + graphics" route: combine generators, math, modulation, ISF shaders, OSC/MIDI input, and audio reactivity in a single patch without writing C++.</p>
+<blockquote>Wire is bundled with the Arena/Avenue installers for free trial use. Producing watermark-free, distributable patches requires a Wire license (€399 separate from Arena/Avenue) — except for licensed Juicebar patches, which their end users can run without owning Wire.</blockquote>
+<hr>
+<h2 id="1-what-wire-produces">1. What Wire produces</h2>
+<p>A Wire <strong>patch</strong> is a self-contained graph saved to disk in one of two formats:</p>
+<table>
+<thead><tr>
+<th>Extension</th>
+<th>Editable?</th>
+<th>Use</th>
+</tr></thead><tbody>
+<tr>
+<td><code>.wired</code></td>
+<td>✅</td>
+<td>Source format. Users with Wire can open and edit.</td>
+</tr>
+<tr>
+<td><code>.cwired</code></td>
+<td>❌</td>
+<td>Compiled / locked. Loaded by Arena/Avenue (or end-users without a Wire license, if a Juicebar key is provided).</td>
+</tr>
+</tbody></table>
+<p>Patches dropped into <code>~/Documents/Resolume Arena/Sources/</code> (or <code>Effects/</code>) appear in Resolume's source/effect picker just like ISF and FFGL plugins. The patch's <strong>template</strong> (Source / Effect / Mixer) determines how it's exposed to the host.</p>
+<hr>
+<h2 id="2-setup-and-version-requirements">2. Setup and version requirements</h2>
+<table>
+<thead><tr>
+<th>Item</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr>
+<td>Minimum Resolume</td>
+<td>7.4</td>
+</tr>
+<tr>
+<td>Latest tested</td>
+<td>Wire 7.26</td>
+</tr>
+<tr>
+<td>Default install (mac)</td>
+<td><code>/Applications/Resolume Wire.app</code></td>
+</tr>
+<tr>
+<td>Default install (win)</td>
+<td><code>C:\Program Files\Resolume Wire\</code></td>
+</tr>
+<tr>
+<td>User patches folder</td>
+<td><code>~/Documents/Resolume Wire/Patches/</code></td>
+</tr>
+<tr>
+<td>Default OSC port (Wire)</td>
+<td><strong>8081</strong> (Arena/Avenue use 8080)</td>
+</tr>
+</tbody></table>
+<p>Wire installs alongside Arena and Avenue. License Wire separately if you need to remove the watermark on standalone or non-Juicebar distributions.</p>
+<hr>
+<h2 id="3-the-three-node-categories">3. The three node categories</h2>
+<table>
+<thead><tr>
+<th>Category</th>
+<th>Purpose</th>
+<th>Examples</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Input</strong></td>
+<td>Bring data into the patch from outside</td>
+<td><code>Texture Input</code>, <code>Trigger Input</code>, <code>Number Input</code>, <code>Color In</code>, <code>OSC In</code>, <code>MIDI In</code>, <code>FFT In</code></td>
+</tr>
+<tr>
+<td><strong>Output</strong></td>
+<td>Send data out of the patch</td>
+<td><code>Texture Output</code>, <code>OSC Out</code>, <code>MIDI Out</code></td>
+</tr>
+<tr>
+<td><strong>Processor</strong></td>
+<td>Compute, transform, mix, modulate</td>
+<td><code>Add</code>, <code>Mix</code>, <code>Sample Texture</code>, <code>ISF</code>, <code>Mesh Render</code>, <code>Text Render</code>, <code>Kaleidoscope</code>, <code>Gaussian Blur</code></td>
+</tr>
+<tr>
+<td><strong>Comment</strong></td>
+<td>Documentation only — no inlets or outlets</td>
+<td><code>Comment</code> (toggle "fill" off for section dividers)</td>
+</tr>
+</tbody></table>
+<p>Input nodes also become the patch's <strong>parameters</strong> — anything you mark for the dashboard appears as a slider/toggle/color in Arena/Avenue's controls panel.</p>
+<hr>
+<h2 id="4-flow-types-three-connection-styles">4. Flow types — three connection styles</h2>
+<p>Every inlet and outlet has a <strong>flow type</strong> that governs when data crosses the wire. The shape on the node tells you which:</p>
+<table>
+<thead><tr>
+<th>Shape</th>
+<th>Flow</th>
+<th>When it transmits</th>
+</tr></thead><tbody>
+<tr>
+<td>⬤ circle</td>
+<td><strong>Signal</strong></td>
+<td>Every frame (frame-rate driven). The default — almost everything is a signal.</td>
+</tr>
+<tr>
+<td>▮ rectangle</td>
+<td><strong>Event</strong></td>
+<td>Only when the user triggers the source node. Independent of frame rate.</td>
+</tr>
+<tr>
+<td>◆ diamond</td>
+<td><strong>Attribute</strong></td>
+<td>Only when the patch (re)compiles. Used for static configuration, not animatable.</td>
+</tr>
+</tbody></table>
+<p>You <strong>cannot animate Attributes</strong> — that's the point. Convert an attribute to a signal first if you need to drive it from runtime values.</p>
+<hr>
+<h2 id="5-data-types">5. Data types</h2>
+<p>Wire types its connections. Type-mismatched wires either auto-convert or refuse to connect. Common types:</p>
+<table>
+<thead><tr>
+<th>Type</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Number</code></td>
+<td>Single float</td>
+</tr>
+<tr>
+<td><code>Vec2</code>, <code>Vec3</code>, <code>Vec4</code></td>
+<td>Component vectors. Pack/unpack with <code>Make Vec2</code> / <code>Unpack</code></td>
+</tr>
+<tr>
+<td><code>Color</code></td>
+<td>First-class color (added in 7.20). Convert with <code>Color from RGB</code>, <code>Color from HSB</code>. Compatible effects accept it directly: Hue Rotate, Greyscale, AddSubtract, Bright.Contrast</td>
+</tr>
+<tr>
+<td><code>Texture</code></td>
+<td>GPU texture — what Texture Input/Output ferry around</td>
+</tr>
+<tr>
+<td><code>Array</code></td>
+<td>List of values</td>
+</tr>
+<tr>
+<td><code>Shape</code></td>
+<td>Path / 2D shape geometry</td>
+</tr>
+<tr>
+<td><code>Trigger</code></td>
+<td>Event-flow signal</td>
+</tr>
+<tr>
+<td><code>String</code></td>
+<td>Text — used by Text Render and OSC addresses</td>
+</tr>
+</tbody></table>
+<p>Wire colors connection wires by data type. The exact palette is set in Preferences → Wire → Color Types and was overhauled in 7.20.</p>
+<hr>
+<h2 id="6-templates-source-effect-mixer">6. Templates: Source / Effect / Mixer</h2>
+<p>When you create a new patch, pick a template from the welcome screen. The template determines:</p>
+<ul>
+<li>Whether the patch shows up under Arena/Avenue's Sources or Effects section</li>
+<li>What input/output nodes are pre-wired</li>
+<li>The texture inputs the host will provide</li>
+</ul>
+<table>
+<thead><tr>
+<th>Template</th>
+<th>Pre-wired inputs</th>
+<th>Where it appears in Arena/Avenue</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Source</strong></td>
+<td>None</td>
+<td>Sources panel (generators)</td>
+</tr>
+<tr>
+<td><strong>Effect</strong></td>
+<td>One <code>Texture Input</code> (the clip below)</td>
+<td>Effect chain on a clip/layer/group</td>
+</tr>
+<tr>
+<td><strong>Mixer</strong></td>
+<td>Two texture inputs (A and B)</td>
+<td>Layer mixer / transition</td>
+</tr>
+</tbody></table>
+<p>After pressing <strong>Compile for Resolume</strong>, the resulting <code>.cwired</code> (or <code>.wired</code>) appears in <code>~/Documents/Resolume Arena/Sources/</code> (or <code>Effects/</code>) and can be triggered like any built-in source.</p>
+<hr>
+<h2 id="7-parameters-the-dashboard">7. Parameters &amp; the Dashboard</h2>
+<p>Parameters that Arena/Avenue should expose go on the <strong>Dashboard</strong> tab. Each Input node has a "show in dashboard" toggle. Order in the dashboard matches order in Arena/Avenue's parameters panel.</p>
+<p><strong>Parameter groups (Wire 7.21+).</strong> From the Dashboard's cogwheel menu, create input groups. Groups appear as <strong>foldable sections</strong> in Arena/Avenue.</p>
+<p><strong>Presets.</strong> Use the <strong>P</strong> icon to save preset states. Presets bundle into compiled patches. End users see them in Arena/Avenue's preset list. The "Default" slot is reserved for the saved patch state.</p>
+<hr>
+<h2 id="8-isf-inside-wire">8. ISF inside Wire</h2>
+<p>The <strong>ISF node</strong> lets you write or load an ISF fragment shader as a node in your patch. The shader's <code>INPUTS</code> automatically appear as inlets on the node — float becomes a Number inlet, color becomes a Color inlet, image becomes a Texture inlet.</p>
+<blockquote><strong>Wire is 2D-only.</strong> You cannot use ISF vertex shaders here. The <code>.fs</code> file is fine; a paired <code>.vs</code> will be ignored. For 3D mesh rendering use the <code>Mesh Render</code> and related nodes.</blockquote>
+<p>See the <a href="../isf/isf-guide.en.html">ISF guide</a> for the JSON metadata format and built-in uniforms.</p>
+<hr>
+<h2 id="9-osc">9. OSC</h2>
+<p>Wire is fully bidirectional on OSC. The relevant nodes:</p>
+<table>
+<thead><tr>
+<th>Node</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>OSC In</code></td>
+<td>Open a UDP listener on a port</td>
+</tr>
+<tr>
+<td><code>Read OSC</code></td>
+<td>Receive a value from a specific address</td>
+</tr>
+<tr>
+<td><code>OSC Out</code></td>
+<td>Open a UDP sender to a host:port</td>
+</tr>
+<tr>
+<td><code>Write OSC</code></td>
+<td>Send a value to an address</td>
+</tr>
+</tbody></table>
+<p><strong>Setup.</strong> In Wire → Preferences (Ctrl/Cmd + ,) → OSC, enable <strong>OSC Input</strong> and set the listening port. Default Wire OSC port is <strong>8081</strong>. Toggle <strong>Use Bundles</strong> to pack messages.</p>
+<p><strong>Common patterns.</strong></p>
+<ul>
+<li>Receive a TouchOSC fader: <code>OSC In :8081</code> → <code>Read OSC /1/fader1</code> → drives a Number signal.</li>
+<li>Send patch state to Ableton/external apps: any signal → <code>Write OSC /myparam</code> → <code>OSC Out 192.168.1.10:9001</code>.</li>
+</ul>
+<hr>
+<h2 id="10-midi">10. MIDI</h2>
+<p>Mirror nodes for MIDI: <code>MIDI In</code>, <code>Read MIDI Note</code>, <code>Read MIDI CC</code>, <code>MIDI Out</code>, <code>Write MIDI Note</code>, <code>Write MIDI CC</code>. Wire can also act as a host, sending MIDI to other DAWs.</p>
+<hr>
+<h2 id="11-audio-reactivity">11. Audio reactivity</h2>
+<p>Wire receives audio from the host (Arena/Avenue) when the patch runs as a plugin:</p>
+<ul>
+<li><strong>FFT input</strong> — frequency-domain bins delivered as an array.</li>
+<li><strong>Audio sample input</strong> — raw waveform.</li>
+<li>Combined with <code>Sample Texture</code>, <code>Average</code>, <code>Smooth</code>, etc. for energy / beat extraction.</li>
+</ul>
+<p>Standalone Wire can also tap the system audio device for testing.</p>
+<hr>
+<h2 id="12-useful-ui-shortcuts">12. Useful UI shortcuts</h2>
+<table>
+<thead><tr>
+<th>Action</th>
+<th>Shortcut</th>
+</tr></thead><tbody>
+<tr>
+<td>Pan canvas</td>
+<td>hold Space + drag, or middle mouse</td>
+</tr>
+<tr>
+<td>Zoom</td>
+<td>middle-mouse scroll, or Ctrl/⌘ + <code>+</code> / <code>-</code></td>
+</tr>
+<tr>
+<td>Fit to view</td>
+<td>Ctrl/⌘ + <code>0</code></td>
+</tr>
+<tr>
+<td>100% zoom</td>
+<td>Ctrl/⌘ + <code>1</code></td>
+</tr>
+<tr>
+<td>Select all</td>
+<td>Ctrl/⌘ + <code>A</code></td>
+</tr>
+<tr>
+<td>Select unused nodes</td>
+<td>Ctrl/⌘ + Shift + <code>A</code></td>
+</tr>
+<tr>
+<td>Auto-sort selected</td>
+<td>Ctrl/⌘ + <code>L</code></td>
+</tr>
+<tr>
+<td>Duplicate</td>
+<td>Ctrl/⌘ + <code>D</code> (or Alt + drag)</td>
+</tr>
+<tr>
+<td>Rename</td>
+<td>Ctrl/⌘ + Shift + <code>R</code></td>
+</tr>
+<tr>
+<td>Search nodes</td>
+<td>Ctrl + F (win) / ⌘ + F (mac)</td>
+</tr>
+<tr>
+<td>Copy / Paste</td>
+<td>Ctrl/⌘ + <code>C</code> / <code>V</code> (also <code>X</code> for cut)</td>
+</tr>
+<tr>
+<td>Copy For Sharing</td>
+<td>right-click → exports patch as forum-pasteable text</td>
+</tr>
+<tr>
+<td>Delete connection / node</td>
+<td>Backspace or Delete</td>
+</tr>
+</tbody></table>
+<p>The right-click <strong>Insert Node Before / After Current</strong> action (added in 7.24) auto-rewires connections — invaluable for inserting filters into long chains.</p>
+<hr>
+<h2 id="13-panels-at-a-glance">13. Panels at a glance</h2>
+<table>
+<thead><tr>
+<th>Panel</th>
+<th>What it does</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Library</strong></td>
+<td>Searchable node browser. Drag onto canvas, or double-click empty canvas to open the node search popup</td>
+</tr>
+<tr>
+<td><strong>Monitor</strong></td>
+<td>Live preview of the selected node's output. Pin to lock a node</td>
+</tr>
+<tr>
+<td><strong>Patch</strong></td>
+<td>Patch metadata: name, description, category, resolution, bit depth, license info</td>
+</tr>
+<tr>
+<td><strong>Node</strong></td>
+<td>Selected node's parameters (manual inlet values, instance count, color, datatype)</td>
+</tr>
+<tr>
+<td><strong>Resources</strong></td>
+<td>External files referenced by the patch (images, ISF files, video). Use <strong>Consolidate</strong> to bundle them next to the patch</td>
+</tr>
+<tr>
+<td><strong>Notes</strong></td>
+<td>Free-text notes panel (added 7.24) for in-patch documentation</td>
+</tr>
+<tr>
+<td><strong>Log</strong></td>
+<td>Errors, warnings, and <code>Print</code> node output</td>
+</tr>
+<tr>
+<td><strong>Dashboard</strong></td>
+<td>Reorder/group parameters; toggle which inputs are exposed to Arena/Avenue</td>
+</tr>
+<tr>
+<td><strong>Patch Navigator</strong></td>
+<td>Minimap-style fast jump through large patches (added 7.24)</td>
+</tr>
+<tr>
+<td><strong>Stats</strong></td>
+<td>Per-node CPU/GPU load — sortable by name, category, load, version</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="14-saving-and-distribution">14. Saving and distribution</h2>
+<pre><code>File → Save                  # writes a .wired
+File → Compile for Resolume  # writes .cwired (locked) into Arena/Avenue's Sources or Effects folder
+File → Consolidate           # bundles patch + all resources into a folder</code></pre>
+<p><strong>Compile dialog options:</strong></p>
+<ul>
+<li><strong>Editable</strong> — when on, recipients with Wire can open and modify. Off → <code>.cwired</code> (locked, no resource access).</li>
+<li><strong>Compile for Juicebar</strong> — generates a license-gated build. End users buy a Juicebar license; Wire injects the watermark unless the license is valid.</li>
+</ul>
+<p><strong>Sharing on forums.</strong> Select nodes → right-click → <strong>Copy For Sharing</strong> → paste the resulting text into a message. The recipient pastes it into Wire to materialize the nodes. Note: external resources (images, ISF files) are <strong>not</strong> included by Copy For Sharing — only the graph.</p>
+<p>The <strong>Juicebar marketplace</strong> at <a href="https://get-juicebar.com/wire">get-juicebar.com/wire</a> is Resolume's first-party storefront for selling Wire patches.</p>
+<hr>
+<h2 id="15-version-timeline-wire-7x-highlights">15. Version timeline (Wire 7.x highlights)</h2>
+<table>
+<thead><tr>
+<th>Version</th>
+<th>Notable additions</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>7.20</strong></td>
+<td>First-class Color type. Color from RGB / HSB, Analogous / Complementary palette nodes, Sample Texture node. Hardware Stats panel (FPS / GPU / CPU / RAM). Node Stats panel (per-node load). Ctrl+F node search. Math: sqrt, radians, pi, phi, tau. Tutorial section overhaul.</td>
+</tr>
+<tr>
+<td><strong>7.21</strong></td>
+<td>Parameter Grouping on the Dashboard — groups appear as foldable sections in Arena/Avenue. Transform Widget.</td>
+</tr>
+<tr>
+<td><strong>7.23</strong></td>
+<td>Parameter Animation Presets. Performance improvements. New and improved Wire nodes.</td>
+</tr>
+<tr>
+<td><strong>7.24</strong></td>
+<td>Patch Navigator panel, Notes panel, Insert Node Before/After Current Node, search popup with previews. New nodes: Kaleidoscope, Gaussian Blur, Cylindrical / Spherical Coordinate tools, Stable Sort.</td>
+</tr>
+<tr>
+<td><strong>7.26</strong></td>
+<td>10-bit colour output, speed fixes.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="16-workflow-tips">16. Workflow tips</h2>
+<ol>
+<li><strong>Build inputs first, output last.</strong> Lay down your <code>Texture Input</code> (if Effect/Mixer) and <code>Texture Output</code> early; everything else slots between them.</li>
+<li><strong>Use <code>Comment</code> nodes liberally.</strong> Toggle "fill" off and a comment becomes a labeled section divider — your future self thanks you.</li>
+<li><strong><code>Print</code> is the debugger.</strong> Pipe a signal into a Print node to read its value in the Log panel.</li>
+<li><strong><code>Pin</code> the Monitor</strong> on a key node to see its live output regardless of selection.</li>
+<li><strong>Test in Arena/Avenue early.</strong> Compile a draft <code>.cwired</code> and load it; the host's framerate and audio context behave differently from Wire's standalone preview.</li>
+<li><strong>Consolidate before sharing.</strong> It copies resources into the patch folder and rewrites resource paths, avoiding broken-link reports from collaborators.</li>
+<li><strong>Don't fight types.</strong> If a wire won't connect, look for a converter node (<code>Make Vec2</code>, <code>Color from RGB</code>, <code>Texture from Color</code>) rather than monkey-patching with packs/unpacks.</li>
+<li><strong>Group early.</strong> Once you have more than ~6 dashboard parameters, create groups (Wire 7.21+) — Arena/Avenue's UI gets cluttered fast otherwise.</li>
+</ol>
+<hr>
+<h2 id="17-common-pitfalls">17. Common pitfalls</h2>
+<ol>
+<li><strong>Patch compiles but doesn't appear in Arena/Avenue.</strong> Check the patch was compiled to the right folder (<code>Sources</code> for a Source template, <code>Effects</code> for an Effect template). Restart Resolume after copying — scan happens on launch.</li>
+<li><strong>Watermark on output.</strong> Either no Wire license, or you didn't enable Juicebar compilation while distributing through Juicebar.</li>
+<li><strong>Vertex shader ignored.</strong> Wire's ISF node is fragment-only (Wire is 2D). Move 3D logic to <code>Mesh Render</code> nodes.</li>
+<li><strong>OSC messages not arriving.</strong> Three usual culprits: firewall (especially Windows), wrong port (Wire defaults to 8081, not Arena's 8080), or sender pointing at <code>localhost</code> while Wire is on a different machine. Use Wire's OSC Input log to confirm packets are arriving.</li>
+<li><strong>Attribute won't animate.</strong> By design — attributes are compile-time only. Use a signal-flow input.</li>
+<li><strong>Parameter not showing in Arena/Avenue.</strong> The Input node's "show in dashboard" toggle is off, or you're checking the wrong product (Source vs Effect template).</li>
+<li><strong>Resources missing on someone else's machine.</strong> Forgot to <strong>Consolidate</strong> before sharing. Run File → Consolidate; that copies images/ISF files into the patch folder and rewrites paths.</li>
+</ol>
+<hr>
+<h2 id="18-when-to-use-wire-vs-ffgl-vs-isf">18. When to use Wire vs FFGL vs ISF</h2>
+<table>
+<thead><tr>
+<th>Need</th>
+<th>Tool</th>
+</tr></thead><tbody>
+<tr>
+<td>One fragment shader, no extra logic</td>
+<td>ISF</td>
+</tr>
+<tr>
+<td>Procedural visuals composed from many primitives + math + audio reactivity</td>
+<td><strong>Wire</strong></td>
+</tr>
+<tr>
+<td>Custom OpenGL pipeline / non-shader CPU work / persistent host state</td>
+<td>FFGL (C++)</td>
+</tr>
+<tr>
+<td>Sell to end users who don't own Wire</td>
+<td>FFGL or <code>.cwired</code> via Juicebar</td>
+</tr>
+<tr>
+<td>Quick prototype, no build system</td>
+<td>ISF or Wire (Wire wins for anything beyond a single shader)</td>
+</tr>
+<tr>
+<td>Maximum performance with hand-tuned GL</td>
+<td>FFGL</td>
+</tr>
+</tbody></table>
+<p>Wire excels when your patch is a system — multiple sources combined, audio-reactive, with parameter groups end users will tweak. For pure shader experiments stay in ISF; for production-grade compiled effects with installer-ready binaries use FFGL.</p>
+<hr>
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://resolume.com/software/wire">resolume.com/software/wire</a> — product page</li>
+<li><a href="https://resolume.com/support/en/wire-introduction">resolume.com/support/en/wire-introduction</a> — official intro</li>
+<li><a href="https://resolume.com/support/en/wire-node-anatomy">resolume.com/support/en/wire-node-anatomy</a> — node structure</li>
+<li><a href="https://resolume.com/support/en/wire-data-flow">resolume.com/support/en/wire-data-flow</a> — flow types</li>
+<li><a href="https://resolume.com/support/en/wire-user-interface">resolume.com/support/en/wire-user-interface</a> — UI reference</li>
+<li><a href="https://resolume.com/support/en/wire-osc">resolume.com/support/en/wire-osc</a> — OSC integration</li>
+<li><a href="https://resolume.com/support/en/wire-saving-consolidating">resolume.com/support/en/wire-saving-consolidating</a> — file formats and distribution</li>
+<li><a href="https://resolume.com/blog/24094">resolume.com/blog/24094</a> — 7.20 Color Types release</li>
+<li><a href="https://resolume.com/blog/24836">resolume.com/blog/24836</a> — 7.21 Parameter Grouping</li>
+<li><a href="https://resolume.com/blog/30807">resolume.com/blog/30807</a> — 7.23 release</li>
+<li><a href="https://get-juicebar.com/wire">get-juicebar.com/wire</a> — Wire patch marketplace</li>
+<li><a href="https://github.com/YaNesyTortiK/WirePatches">github.com/YaNesyTortiK/WirePatches</a> — community patches</li>
+</ul>
+</main>
+</div>
+</body>
+</html>

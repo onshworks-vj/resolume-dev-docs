@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume 개발 문서</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">한국어</a>
+<a href="README.en.html">English</a>
+</div>
+<h2>홈</h2>
+<a href="README.ko.html">← 인덱스</a>
+<h2>목차</h2>
+<a class="depth-2" href="#언어">언어</a>
+<a class="depth-2" href="#문서">문서</a>
+<a class="depth-3" href="#osc-제어">OSC 제어</a>
+<a class="depth-3" href="#ffgl-플러그인-개발-c">FFGL 플러그인 개발 (C++)</a>
+<a class="depth-3" href="#isf-셰이더-작성">ISF 셰이더 작성</a>
+<a class="depth-3" href="#wire-패치-개발">Wire 패치 개발</a>
+<a class="depth-2" href="#디렉토리-구조">디렉토리 구조</a>
+<a class="depth-2" href="#어떤-도구를-쓸지">어떤 도구를 쓸지</a>
+<a class="depth-2" href="#최신성-메모">최신성 메모</a>
+<a class="depth-2" href="#기여-업데이트">기여 / 업데이트</a>
+</aside>
+<main>
+<h1>Resolume 개발 문서</h1>
+<div class="meta">Resolume Arena / Avenue 7.20+ · 2026-04-30</div>
+<p><strong>Resolume Arena와 Avenue 7.x</strong>의 OSC 제어, FFGL 플러그인 개발, ISF 셰이더 작성을 다루는 개발자용 문서. Resolume 7.20+ 현재 상태 기준, 공식 문서와 활발히 유지보수되는 서드파티 레퍼런스로 검증.</p>
+<blockquote><strong>이 문서가 필요한 이유.</strong> 인터넷의 Resolume 튜토리얼 대부분이 아직 Resolume 4/5 시절을 참조함 — OSC 네임스페이스가 틀리고, SDK 경로는 deprecated이고, 셰이더 패턴은 구식. 이 문서는 현행 자료와 FFGL master 브랜치 기준으로 작성됨.</blockquote>
+<h2 id="언어">언어</h2>
+<ul>
+<li><strong>한국어</strong> — 이 인덱스 → 아래 문서 참조</li>
+<li><strong>English</strong> — <a href="README.en.html">README.en.md</a></li>
+</ul>
+<h2 id="문서">문서</h2>
+<h3 id="osc-제어">OSC 제어</h3>
+<p>OSC 가능한 어떤 애플리케이션(TouchOSC, Companion, Max/MSP, 직접 짠 코드)에서든 Resolume 제어. 현재의 <code>/composition/...</code> 네임스페이스, 값 수정자, 상태 조회, 그리고 관련 REST/WebSocket API 다룸.</p>
+<ul>
+<li><a href="osc/osc-reference.ko.html">osc/osc-reference.ko.md</a></li>
+</ul>
+<h3 id="ffgl-플러그인-개발-c">FFGL 플러그인 개발 (C++)</h3>
+<p>공식 FFGL SDK로 네이티브 이펙트/소스/믹서를 C++로 빌드. SDK 셋업, 플러그인 라이프사이클, 파라미터 타입, 컬러 컴포넌트, 오디오 리액티브, 자주 하는 실수까지.</p>
+<ul>
+<li><a href="ffgl/ffgl-guide.ko.html">ffgl/ffgl-guide.ko.md</a></li>
+</ul>
+<h3 id="isf-셰이더-작성">ISF 셰이더 작성</h3>
+<p>JSON 프리픽스가 붙은 GLSL 프래그먼트 셰이더로 Resolume 이펙트/소스/트랜지션 작성. 빌드 시스템도, SDK도 없음 — <code>.fs</code> 파일을 떨어뜨리면 Resolume에 나타남.</p>
+<ul>
+<li><a href="isf/isf-guide.ko.html">isf/isf-guide.ko.md</a></li>
+</ul>
+<h3 id="wire-패치-개발">Wire 패치 개발</h3>
+<p>Resolume Wire의 노드 기반 패치로 Source / Effect / Mixer 빌드. 절차적 비주얼, 오디오 리액티브, ISF 셰이더, OSC/MIDI 로직을 코드 없이 결합. <code>.wired</code> / <code>.cwired</code>로 컴파일해 Arena/Avenue에 로드.</p>
+<ul>
+<li><a href="wire/wire-guide.ko.html">wire/wire-guide.ko.md</a></li>
+</ul>
+<h2 id="디렉토리-구조">디렉토리 구조</h2>
+<pre><code>resolume-dev-docs/
+├── index.html                    ← GitHub Pages 진입점 (= README.en.html)
+├── README.{en,ko}.{md,html}      ← 인덱스, MD/HTML 양쪽
+├── osc/
+│   └── osc-reference.{en,ko}.{md,html}
+├── ffgl/
+│   └── ffgl-guide.{en,ko}.{md,html}
+├── isf/
+│   └── isf-guide.{en,ko}.{md,html}
+├── wire/
+│   └── wire-guide.{en,ko}.{md,html}
+└── assets/
+    └── style.css                 ← HTML 사이트 공통 스타일</code></pre>
+<p>Markdown이 정본. <code>.html</code>은 미리 빌드되어 커밋되며 <strong>GitHub Pages</strong>로 빌드 단계 없이 그대로 서비스됨. Markdown을 수정하면 커밋 전에 매칭되는 HTML도 같이 갱신해야 함.</p>
+<h2 id="어떤-도구를-쓸지">어떤 도구를 쓸지</h2>
+<table>
+<thead><tr>
+<th>하고 싶은 일</th>
+<th>사용</th>
+</tr></thead><tbody>
+<tr>
+<td>컨트롤러에서 클립 트리거 / 파라미터 변경</td>
+<td>OSC</td>
+</tr>
+<tr>
+<td>복잡한 투어 제어 표면, 상태 피드백, 구조 조작</td>
+<td>REST/WebSocket API (OSC 문서 §15)</td>
+</tr>
+<tr>
+<td>새 비주얼 이펙트나 제너레이터를 빠르게, 프래그먼트 셰이더 로직만</td>
+<td>ISF</td>
+</tr>
+<tr>
+<td>호스트 오디오 데이터 접근, 풀 GL 제어의 피드백 버퍼</td>
+<td>ISF (audio 입력 + PASSES)</td>
+</tr>
+<tr>
+<td>여러 소스 + 수학 + 오디오 리액티브 + OSC/MIDI 로직을 시각적으로 구성</td>
+<td><strong>Wire</strong></td>
+</tr>
+<tr>
+<td>고성능 네이티브 이펙트, 커스텀 GL 파이프라인, 단일 프래그먼트 셰이더 그 이상</td>
+<td>FFGL</td>
+</tr>
+<tr>
+<td>비기술 사용자에게 매끈한 UX로 배포</td>
+<td>FFGL (컴파일된 바이너리) 또는 Juicebar 통한 Wire <code>.cwired</code></td>
+</tr>
+</tbody></table>
+<h2 id="최신성-메모">최신성 메모</h2>
+<ul>
+<li><strong>OSC</strong>: 여기 정리된 네임스페이스는 Resolume 7.20+, 활발히 유지보수되는 Bitfocus Companion 모듈 소스, Resolume의 정적 OSC 리스트로 검증됨. <code>/composition/...</code> 경로는 Resolume 7.0 이래 안정적 — 포인트 릴리스에서 바뀐 건 주로 추가된 경로(groups, layer groups, transport 하위)이고 breaking change는 없음.</li>
+<li><strong>FFGL</strong>: master SDK 브랜치 기준이며, 클래스명·FF_TYPE_* 상수·라이프사이클 메서드를 <code>github.com/resolume/ffgl</code>의 헤더와 대조 검증. 구버전 Resolume이 타깃이면 <code>v2.2</code> 태그 사용.</li>
+<li><strong>ISF</strong>: 스펙은 수년째 안 움직임. ISF v2.0이 현행이며, 함수명은 VVISF-GL 레퍼런스 파서와 대조 검증.</li>
+<li><strong>Wire</strong>: Wire 7.26과 Resolume 공식 지원 페이지 기준. 패치 파일 형식(<code>.wired</code> / <code>.cwired</code>), 노드 카테고리, flow 타입, 그리고 최근 추가(7.20 Color 타입, 7.21 파라미터 그룹화, 7.24 Patch Navigator)가 현행 릴리스 반영.</li>
+</ul>
+<blockquote><strong>검증.</strong> 이 문서는 Resolume 공식 지원 페이지, FFGL SDK 소스, ISF 스펙 저장소, Bitfocus Companion 모듈, 그리고 여러 커뮤니티 OSC 구현체와 교차 검증됨. 각 문서의 출처 섹션 참고.</blockquote>
+<h2 id="기여-업데이트">기여 / 업데이트</h2>
+<p>Resolume이 새 릴리스에서 OSC 경로나 FFGL 기능을 추가했을 때:</p>
+<ol>
+<li>해당 <code>.md</code> 파일 편집 (영어 먼저, 한국어 미러링).</li>
+<li>프론트매터의 version 라인 업데이트.</li>
+<li>커밋.</li>
+</ol>
+</main>
+</div>
+</body>
+</html>

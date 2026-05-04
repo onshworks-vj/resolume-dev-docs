@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISF Shader Guide for Resolume 7</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">English</a>
+<a href="isf-guide.ko.html">한국어</a>
+</div>
+<h2>Home</h2>
+<a href="../README.en.html">← Index</a>
+<h2>Contents</h2>
+<a class="depth-2" href="#1-what-an-isf-file-looks-like">1. What an ISF file looks like</a>
+<a class="depth-2" href="#2-where-to-put-files">2. Where to put files</a>
+<a class="depth-2" href="#3-isf-json-top-level-fields">3. ISF JSON top-level fields</a>
+<a class="depth-2" href="#4-inputs-parameter-types">4. INPUTS — parameter types</a>
+<a class="depth-3" href="#examples">Examples</a>
+<a class="depth-3" href="#other-input-attributes">Other input attributes</a>
+<a class="depth-2" href="#5-built-in-uniforms">5. Built-in uniforms</a>
+<a class="depth-2" href="#6-built-in-functions-for-sampling">6. Built-in functions for sampling</a>
+<a class="depth-2" href="#7-passes-multi-pass-shaders">7. PASSES — multi-pass shaders</a>
+<a class="depth-2" href="#8-imported-images">8. IMPORTED images</a>
+<a class="depth-2" href="#9-effect-source-transition-conventions">9. Effect / Source / Transition conventions</a>
+<a class="depth-3" href="#effect-filter-on-a-clip">Effect (filter on a clip)</a>
+<a class="depth-3" href="#source-generator-no-input-clip">Source (generator, no input clip)</a>
+<a class="depth-3" href="#transition-between-two-clips-ab-over-time">Transition (between two clips, A→B over time)</a>
+<a class="depth-2" href="#10-vertex-shaders-rarely-needed">10. Vertex shaders (rarely needed)</a>
+<a class="depth-2" href="#11-audio-reactivity">11. Audio reactivity</a>
+<a class="depth-2" href="#12-converting-glsl-shadertoy-to-isf">12. Converting GLSL / Shadertoy to ISF</a>
+<a class="depth-2" href="#13-workflow-tips">13. Workflow tips</a>
+<a class="depth-2" href="#14-common-pitfalls">14. Common pitfalls</a>
+<a class="depth-2" href="#15-minimal-templates">15. Minimal templates</a>
+<a class="depth-3" href="#source-animated-gradient">Source: animated gradient</a>
+<a class="depth-3" href="#effect-pixelate">Effect: pixelate</a>
+<a class="depth-3" href="#transition-dissolve">Transition: dissolve</a>
+<a class="depth-2" href="#sources">Sources</a>
+</aside>
+<main>
+<h1>ISF Shader Guide for Resolume 7</h1>
+<div class="meta">ISF 2.0 / Resolume 7.8+ · 2026-04-30 (verified against ISF spec)</div>
+<p>ISF (Interactive Shader Format) is a JSON-prefixed GLSL fragment-shader format that Resolume Avenue / Arena 7.8+ loads natively. <strong>No C++ build, no SDK</strong> — drop a <code>.fs</code> file into the right folder and Resolume picks it up. ISF is the right choice for visuals expressible as a fragment shader.</p>
+<p>For native effects with audio access, persistent host state, or non-shader logic, use <a href="../ffgl/ffgl-guide.en.html">FFGL</a> instead.</p>
+<hr>
+<h2 id="1-what-an-isf-file-looks-like">1. What an ISF file looks like</h2>
+<p>An ISF file is a single <code>.fs</code> file with a JSON metadata block at the top wrapped in GLSL multi-line comment delimiters, then GLSL fragment shader code:</p>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Tints the input image",
+    "CREDIT": "your name",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Color"],
+    "INPUTS": [
+        { "NAME": "inputImage", "TYPE": "image" },
+        { "NAME": "tint", "TYPE": "color", "DEFAULT": [1.0, 0.5, 0.5, 1.0] }
+    ]
+}*/
+
+void main() {
+    vec4 src = IMG_THIS_PIXEL(inputImage);
+    gl_FragColor = src * tint;
+}</code></pre>
+<p>Three rules:</p>
+<ol>
+<li><strong>The JSON block must come first</strong> and be wrapped in <code>/*{ ... }*/</code>.</li>
+<li><strong>Use <code>IMG_PIXEL</code> / <code>IMG_NORM_PIXEL</code></strong> instead of GLSL's <code>texture2D</code> / <code>texture</code> for input images.</li>
+<li><strong>Write to <code>gl_FragColor</code></strong> as the final output (the spec is GLSL 1.10-style).</li>
+</ol>
+<hr>
+<h2 id="2-where-to-put-files">2. Where to put files</h2>
+<table>
+<thead><tr>
+<th>Platform</th>
+<th>Path</th>
+</tr></thead><tbody>
+<tr>
+<td>Resolume user folder</td>
+<td><code>~/Documents/Resolume Arena/Sources/</code> or <code>~/Documents/Resolume Arena/Effects/</code></td>
+</tr>
+<tr>
+<td>Windows equivalent</td>
+<td><code>%USERPROFILE%\Documents\Resolume Arena\Sources\</code> (or <code>Effects\</code>)</td>
+</tr>
+<tr>
+<td>Cross-app ISF folder (mac)</td>
+<td><code>~/Library/Graphics/ISF/</code></td>
+</tr>
+<tr>
+<td>Cross-app ISF folder (win)</td>
+<td><code>%PROGRAMDATA%\ISF\</code></td>
+</tr>
+</tbody></table>
+<p>If you place an ISF in Resolume's <code>Sources/</code> folder, it appears as a Source. In <code>Effects/</code>, it appears as an Effect.</p>
+<blockquote><strong>The cross-app <code>ISF</code> folders</strong> (<code>~/Library/Graphics/ISF/</code> and <code>%PROGRAMDATA%\ISF\</code>) are the Vidvox/ISF community convention used by VDMX, MadMapper, and other ISF hosts. Resolume reads them in practice but does not document them as official scan paths — drop a copy into Resolume's per-product <code>Sources/Effects</code> folder if you want to be sure.</blockquote>
+<blockquote><strong>The convention is what makes it a Source vs an Effect.</strong> Resolume looks at your <code>INPUTS</code> to decide: - No <code>inputImage</code> → <strong>Source</strong> - One <code>image</code> input named <code>inputImage</code> → <strong>Effect</strong> - Two image inputs named <code>startImage</code> and <code>endImage</code> plus a <code>progress</code> float → <strong>Transition</strong></blockquote>
+<hr>
+<h2 id="3-isf-json-top-level-fields">3. ISF JSON top-level fields</h2>
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ISFVSN</code></td>
+<td>yes</td>
+<td>Spec version. Use <code>"2.0"</code></td>
+</tr>
+<tr>
+<td><code>DESCRIPTION</code></td>
+<td>no</td>
+<td>Human description shown in Resolume</td>
+</tr>
+<tr>
+<td><code>CREDIT</code></td>
+<td>no</td>
+<td>Attribution</td>
+</tr>
+<tr>
+<td><code>CATEGORIES</code></td>
+<td>no</td>
+<td>Array of strings, e.g. <code>["Color", "Stylize"]</code></td>
+</tr>
+<tr>
+<td><code>INPUTS</code></td>
+<td>no</td>
+<td>Array of input parameter objects (§4)</td>
+</tr>
+<tr>
+<td><code>PASSES</code></td>
+<td>no</td>
+<td>Multi-pass rendering setup (§7)</td>
+</tr>
+<tr>
+<td><code>IMPORTED</code></td>
+<td>no</td>
+<td>External images to load alongside the shader</td>
+</tr>
+<tr>
+<td><code>VSN</code></td>
+<td>no</td>
+<td>Version of <em>this</em> shader file</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="4-inputs-parameter-types">4. INPUTS — parameter types</h2>
+<p>Each entry in <code>INPUTS</code> requires <code>NAME</code> and <code>TYPE</code>. Most accept <code>LABEL</code>, <code>DEFAULT</code>, <code>MIN</code>, <code>MAX</code>, <code>IDENTITY</code>.</p>
+<table>
+<thead><tr>
+<th>TYPE</th>
+<th>GLSL uniform type</th>
+<th>UI in Resolume</th>
+<th>DEFAULT format</th>
+</tr></thead><tbody>
+<tr>
+<td><code>event</code></td>
+<td><code>bool</code></td>
+<td>Momentary button</td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>bool</code></td>
+<td>Toggle</td>
+<td><code>true</code> / <code>false</code></td>
+</tr>
+<tr>
+<td><code>long</code></td>
+<td><code>int</code></td>
+<td>Dropdown — needs <code>VALUES</code> and <code>LABELS</code> arrays</td>
+<td>integer</td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td><code>float</code></td>
+<td>Slider — uses <code>MIN</code>/<code>MAX</code></td>
+<td>number</td>
+</tr>
+<tr>
+<td><code>point2D</code></td>
+<td><code>vec2</code></td>
+<td>XY pad — <code>MIN</code>/<code>MAX</code> are 2-element arrays</td>
+<td><code>[x, y]</code></td>
+</tr>
+<tr>
+<td><code>color</code></td>
+<td><code>vec4</code></td>
+<td>Color picker — <code>MIN</code>/<code>MAX</code>/<code>DEFAULT</code> are 4-element arrays</td>
+<td><code>[r, g, b, a]</code></td>
+</tr>
+<tr>
+<td><code>image</code></td>
+<td><code>sampler2D</code></td>
+<td>Image input</td>
+<td>(n/a)</td>
+</tr>
+<tr>
+<td><code>audio</code></td>
+<td><code>sampler2D</code></td>
+<td>Audio waveform packed as image</td>
+<td>(n/a)</td>
+</tr>
+<tr>
+<td><code>audioFFT</code></td>
+<td><code>sampler2D</code></td>
+<td>FFT-processed audio</td>
+<td>(n/a)</td>
+</tr>
+</tbody></table>
+<h3 id="examples">Examples</h3>
+<pre><code class="lang-json">{ "NAME": "amount", "TYPE": "float", "MIN": 0.0, "MAX": 2.0, "DEFAULT": 1.0 }
+
+{ "NAME": "center", "TYPE": "point2D",
+  "MIN": [0.0, 0.0], "MAX": [1.0, 1.0], "DEFAULT": [0.5, 0.5] }
+
+{ "NAME": "blendMode", "TYPE": "long",
+  "VALUES": [0, 1, 2], "LABELS": ["Add", "Multiply", "Screen"], "DEFAULT": 0 }
+
+{ "NAME": "tint", "TYPE": "color",
+  "DEFAULT": [1.0, 1.0, 1.0, 1.0] }</code></pre>
+<p>Once declared, the input is available as a uniform in the shader by the name you gave it.</p>
+<h3 id="other-input-attributes">Other input attributes</h3>
+<ul>
+<li><strong><code>LABEL</code></strong> — display name in the host's UI (NAME stays as the GLSL identifier).</li>
+<li><strong><code>IDENTITY</code></strong> — the value that should be treated as "no effect" (used by hosts to bypass the parameter cleanly when the user resets it).</li>
+<li><strong><code>MAX</code></strong> on <code>audio</code> / <code>audioFFT</code> — sets the desired number of audio samples or FFT bins. Hosts honor this as a hint:</li>
+</ul>
+<pre><code class="lang-json">{ "NAME": "audioFFT", "TYPE": "audioFFT", "MAX": 64 }</code></pre>
+<hr>
+<h2 id="5-built-in-uniforms">5. Built-in uniforms</h2>
+<p>ISF declares these automatically — don't redeclare them:</p>
+<table>
+<thead><tr>
+<th>Name</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RENDERSIZE</code></td>
+<td><code>vec2</code></td>
+<td>Output dimensions in pixels</td>
+</tr>
+<tr>
+<td><code>TIME</code></td>
+<td><code>float</code></td>
+<td>Seconds since shader start</td>
+</tr>
+<tr>
+<td><code>TIMEDELTA</code></td>
+<td><code>float</code></td>
+<td>Seconds since last frame (0 on first frame)</td>
+</tr>
+<tr>
+<td><code>FRAMEINDEX</code></td>
+<td><code>int</code></td>
+<td>Frame counter starting at 0</td>
+</tr>
+<tr>
+<td><code>DATE</code></td>
+<td><code>vec4</code></td>
+<td>(year, month, day, seconds-of-day)</td>
+</tr>
+<tr>
+<td><code>PASSINDEX</code></td>
+<td><code>int</code></td>
+<td>Current pass (0 if no PASSES)</td>
+</tr>
+<tr>
+<td><code>isf_FragNormCoord</code></td>
+<td><code>vec2</code></td>
+<td>Current fragment in normalized 0..1 (origin bottom-left)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-built-in-functions-for-sampling">6. Built-in functions for sampling</h2>
+<p>Don't use <code>texture2D</code>. Use these:</p>
+<table>
+<thead><tr>
+<th>Function</th>
+<th>Signature</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>IMG_PIXEL</code></td>
+<td><code>vec4 IMG_PIXEL(image, vec2 pixelCoord)</code></td>
+<td>Sample at integer pixel coords</td>
+</tr>
+<tr>
+<td><code>IMG_NORM_PIXEL</code></td>
+<td><code>vec4 IMG_NORM_PIXEL(image, vec2 normCoord)</code></td>
+<td>Sample at 0..1 normalized coords</td>
+</tr>
+<tr>
+<td><code>IMG_THIS_PIXEL</code></td>
+<td><code>vec4 IMG_THIS_PIXEL(image)</code></td>
+<td>Sample at the current fragment's pixel coord</td>
+</tr>
+<tr>
+<td><code>IMG_THIS_NORM_PIXEL</code></td>
+<td><code>vec4 IMG_THIS_NORM_PIXEL(image)</code></td>
+<td>Sample at the current fragment's normalized coord</td>
+</tr>
+<tr>
+<td><code>IMG_SIZE</code></td>
+<td><code>vec2 IMG_SIZE(image)</code></td>
+<td>Image dimensions in pixels</td>
+</tr>
+</tbody></table>
+<pre><code class="lang-glsl">// Identity passthrough
+gl_FragColor = IMG_THIS_NORM_PIXEL(inputImage);
+
+// Read 10px to the left
+vec2 here = gl_FragCoord.xy;
+gl_FragColor = IMG_PIXEL(inputImage, here - vec2(10.0, 0.0));</code></pre>
+<hr>
+<h2 id="7-passes-multi-pass-shaders">7. PASSES — multi-pass shaders</h2>
+<p>For effects that need feedback or downsampling, declare <code>PASSES</code> to render into intermediate buffers.</p>
+<pre><code class="lang-json">"PASSES": [
+    {
+        "TARGET": "lastFrame",
+        "PERSISTENT": true,
+        "FLOAT": true
+    },
+    { }
+]</code></pre>
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>TARGET</code></td>
+<td>Buffer name. Becomes a sampler2D you can read with <code>IMG_NORM_PIXEL</code></td>
+</tr>
+<tr>
+<td><code>PERSISTENT</code></td>
+<td>If <code>true</code>, buffer survives between frames (feedback)</td>
+</tr>
+<tr>
+<td><code>FLOAT</code></td>
+<td>If <code>true</code>, 32-bit float storage (HDR / accumulation)</td>
+</tr>
+<tr>
+<td><code>WIDTH</code></td>
+<td>Optional expression. Supports <code>$WIDTH</code>, <code>$HEIGHT</code>, and <strong>input names</strong> as <code>$inputName</code> (e.g. <code>"$WIDTH * $scale"</code>)</td>
+</tr>
+<tr>
+<td><code>HEIGHT</code></td>
+<td>Optional expression — same rules as WIDTH</td>
+</tr>
+</tbody></table>
+<p>In the shader, <code>PASSINDEX</code> tells you which pass you're in:</p>
+<pre><code class="lang-glsl">void main() {
+    if (PASSINDEX == 0) {
+        // Write to "lastFrame" — store this frame for next time
+        gl_FragColor = IMG_THIS_NORM_PIXEL(inputImage);
+    } else {
+        // Final pass: blend current with previous
+        vec4 cur  = IMG_THIS_NORM_PIXEL(inputImage);
+        vec4 prev = IMG_THIS_NORM_PIXEL(lastFrame);
+        gl_FragColor = mix(prev, cur, 0.1); // motion trails
+    }
+}</code></pre>
+<p>The empty <code>{ }</code> final pass writes to the screen.</p>
+<hr>
+<h2 id="8-imported-images">8. IMPORTED images</h2>
+<p>Bundle a static image alongside the shader (e.g. for LUTs or noise textures):</p>
+<pre><code class="lang-json">"IMPORTED": {
+    "noiseTex": { "PATH": "noise.png" }
+}</code></pre>
+<p><code>noiseTex</code> is then available as a sampler in the shader. Place <code>noise.png</code> next to your <code>.fs</code> file.</p>
+<hr>
+<h2 id="9-effect-source-transition-conventions">9. Effect / Source / Transition conventions</h2>
+<p>Resolume decides what your shader is by the inputs you declare:</p>
+<h3 id="effect-filter-on-a-clip">Effect (filter on a clip)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "inputImage", "TYPE": "image" },
+    { "NAME": "amount", "TYPE": "float", "DEFAULT": 0.5 }
+]</code></pre>
+<h3 id="source-generator-no-input-clip">Source (generator, no input clip)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "color", "TYPE": "color", "DEFAULT": [1, 1, 1, 1] }
+]</code></pre>
+<h3 id="transition-between-two-clips-ab-over-time">Transition (between two clips, A→B over time)</h3>
+<pre><code class="lang-json">"INPUTS": [
+    { "NAME": "startImage", "TYPE": "image" },
+    { "NAME": "endImage",   "TYPE": "image" },
+    { "NAME": "progress",   "TYPE": "float", "MIN": 0.0, "MAX": 1.0, "DEFAULT": 0.0 }
+]</code></pre>
+<hr>
+<h2 id="10-vertex-shaders-rarely-needed">10. Vertex shaders (rarely needed)</h2>
+<p>Default vertex shader is fine for 99% of fragment-only effects. If you do need one, name it the same as your <code>.fs</code> with a <code>.vs</code> extension. The first line of <code>main()</code> must be:</p>
+<pre><code class="lang-glsl">void main() {
+    isf_vertShaderInit();
+    // ... your custom logic
+}</code></pre>
+<p>Resolume Wire (the node-based patcher, actively developed in 7.26+) does <strong>not</strong> support vertex shaders — it operates in 2D only. Avenue/Arena fully support them.</p>
+<hr>
+<h2 id="11-audio-reactivity">11. Audio reactivity</h2>
+<p>Two input types receive audio data as textures:</p>
+<pre><code class="lang-json">{ "NAME": "audio",    "TYPE": "audio" },
+{ "NAME": "audioFFT", "TYPE": "audioFFT" }</code></pre>
+<p>Sample them like any image. The width of the texture is the number of samples (waveform) or frequency bins (FFT); the height is the channel count.</p>
+<pre><code class="lang-glsl">// Average FFT amplitude across bins
+float energy = 0.0;
+int bins = int(IMG_SIZE(audioFFT).x);
+for (int i = 0; i &lt; bins; i++) {
+    float u = float(i) / float(bins);
+    energy += IMG_NORM_PIXEL(audioFFT, vec2(u, 0.5)).r;
+}
+energy /= float(bins);</code></pre>
+<hr>
+<h2 id="12-converting-glsl-shadertoy-to-isf">12. Converting GLSL / Shadertoy to ISF</h2>
+<p>Common edits when porting:</p>
+<table>
+<thead><tr>
+<th>GLSL / Shadertoy</th>
+<th>ISF</th>
+</tr></thead><tbody>
+<tr>
+<td><code>mainImage(out vec4 fragColor, in vec2 fragCoord)</code></td>
+<td><code>void main()</code> writing to <code>gl_FragColor</code></td>
+</tr>
+<tr>
+<td><code>iResolution.xy</code></td>
+<td><code>RENDERSIZE</code></td>
+</tr>
+<tr>
+<td><code>iTime</code></td>
+<td><code>TIME</code></td>
+</tr>
+<tr>
+<td><code>iFrame</code></td>
+<td><code>FRAMEINDEX</code></td>
+</tr>
+<tr>
+<td><code>iChannel0</code></td>
+<td>declare an <code>image</code> input, sample with <code>IMG_NORM_PIXEL</code></td>
+</tr>
+<tr>
+<td><code>texture(iChannel0, uv)</code></td>
+<td><code>IMG_NORM_PIXEL(inputImage, uv)</code></td>
+</tr>
+<tr>
+<td><code>fragCoord / iResolution.xy</code></td>
+<td><code>isf_FragNormCoord</code></td>
+</tr>
+</tbody></table>
+<p>Final output should write <code>gl_FragColor.a = 1.0</code> (or the proper alpha) so Resolume's compositor doesn't show artifacts.</p>
+<hr>
+<h2 id="13-workflow-tips">13. Workflow tips</h2>
+<ol>
+<li><strong>Resolume reloads on save</strong> if the shader is open in a clip. Edit-save-see immediately.</li>
+<li><strong>The ISF Editor</strong> (https://editor.isf.video) renders ISF in-browser and is the fastest iteration loop. Tested shaders work in Resolume verbatim.</li>
+<li><strong>Errors go to Resolume's log.</strong> GLSL compile errors aren't shown in the UI; check <code>~/Library/Logs/Resolume Arena/</code> (mac) or <code>%LOCALAPPDATA%\Resolume Arena\Logs\</code> (win).</li>
+<li><strong>Keep shaders pure-fragment</strong> until you genuinely need a <code>.vs</code>. Most cool effects are fragment-only.</li>
+<li><strong>Use <code>LABEL</code></strong> to give human-readable names — <code>NAME</code> becomes the GLSL identifier (no spaces), <code>LABEL</code> is what the user sees.</li>
+</ol>
+<hr>
+<h2 id="14-common-pitfalls">14. Common pitfalls</h2>
+<ol>
+<li><strong><code>inputImage</code> not declared</strong> → Resolume thinks your shader is a Source. Add an <code>image</code> input named exactly <code>inputImage</code> to make it an Effect.</li>
+<li><strong>Naming clash with built-ins</strong> — don't name an input <code>TIME</code>, <code>RENDERSIZE</code>, etc.</li>
+<li><strong>Forgot <code>gl_FragColor.a = 1.0</code></strong> in a Source — Resolume's compositor may produce strange edges.</li>
+<li><strong>JSON parse error</strong> → entire shader silently fails to load. Validate JSON; trailing commas are not allowed.</li>
+<li><strong>Persistent buffer not surviving</strong> → check <code>PERSISTENT: true</code> and that you're rendering to it every frame.</li>
+<li><strong>Wrong coordinate origin</strong> — <code>isf_FragNormCoord</code> is <strong>bottom-left origin</strong>. If you ported from Shadertoy (top-left), <code>y</code> is flipped.</li>
+</ol>
+<hr>
+<h2 id="15-minimal-templates">15. Minimal templates</h2>
+<h3 id="source-animated-gradient">Source: animated gradient</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Time-warped gradient",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Generator"],
+    "INPUTS": [
+        { "NAME": "speed", "TYPE": "float", "MIN": 0.0, "MAX": 5.0, "DEFAULT": 1.0 }
+    ]
+}*/
+void main() {
+    vec2 uv = isf_FragNormCoord;
+    float t = TIME * speed;
+    gl_FragColor = vec4(
+        0.5 + 0.5 * sin(uv.x * 6.0 + t),
+        0.5 + 0.5 * sin(uv.y * 6.0 + t * 1.3),
+        0.5 + 0.5 * sin((uv.x + uv.y) * 4.0 + t * 0.7),
+        1.0
+    );
+}</code></pre>
+<h3 id="effect-pixelate">Effect: pixelate</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Pixelate",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Stylize"],
+    "INPUTS": [
+        { "NAME": "inputImage", "TYPE": "image" },
+        { "NAME": "size", "TYPE": "float", "MIN": 1.0, "MAX": 64.0, "DEFAULT": 8.0 }
+    ]
+}*/
+void main() {
+    vec2 grid = floor(gl_FragCoord.xy / size) * size + vec2(size * 0.5);
+    gl_FragColor = IMG_PIXEL(inputImage, grid);
+}</code></pre>
+<h3 id="transition-dissolve">Transition: dissolve</h3>
+<pre><code class="lang-glsl">/*{
+    "DESCRIPTION": "Crossfade",
+    "ISFVSN": "2.0",
+    "CATEGORIES": ["Transition"],
+    "INPUTS": [
+        { "NAME": "startImage", "TYPE": "image" },
+        { "NAME": "endImage",   "TYPE": "image" },
+        { "NAME": "progress",   "TYPE": "float", "MIN": 0.0, "MAX": 1.0, "DEFAULT": 0.0 }
+    ]
+}*/
+void main() {
+    vec4 a = IMG_THIS_NORM_PIXEL(startImage);
+    vec4 b = IMG_THIS_NORM_PIXEL(endImage);
+    gl_FragColor = mix(a, b, progress);
+}</code></pre>
+<hr>
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://docs.isf.video">docs.isf.video</a> — official ISF documentation</li>
+<li><a href="https://docs.isf.video/quickstart.html">docs.isf.video/quickstart.html</a> — quickstart guide</li>
+<li><a href="https://docs.isf.video/ref_json.html">docs.isf.video/ref_json.html</a> — JSON reference</li>
+<li><a href="https://docs.isf.video/ref_variables.html">docs.isf.video/ref_variables.html</a> — built-in variables</li>
+<li><a href="https://docs.isf.video/ref_functions.html">docs.isf.video/ref_functions.html</a> — helper functions</li>
+<li><a href="https://docs.isf.video/ref_converting.html">docs.isf.video/ref_converting.html</a> — converting from raw GLSL</li>
+<li><a href="https://github.com/mrRay/ISF_Spec">github.com/mrRay/ISF_Spec</a> — spec source</li>
+<li><a href="https://editor.isf.video">editor.isf.video</a> — browser editor</li>
+<li><a href="https://resolume.com/support/en/isf">resolume.com/support/en/isf</a> — Resolume's ISF support page</li>
+</ul>
+</main>
+</div>
+</body>
+</html>

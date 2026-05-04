@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume Development Docs</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">English</a>
+<a href="README.ko.html">한국어</a>
+</div>
+<h2>Home</h2>
+<a href="README.en.html">← Index</a>
+<h2>Contents</h2>
+<a class="depth-2" href="#languages">Languages</a>
+<a class="depth-2" href="#documents">Documents</a>
+<a class="depth-3" href="#osc-control">OSC Control</a>
+<a class="depth-3" href="#ffgl-plugin-development-c">FFGL Plugin Development (C++)</a>
+<a class="depth-3" href="#isf-shader-authoring">ISF Shader Authoring</a>
+<a class="depth-3" href="#wire-patch-development">Wire Patch Development</a>
+<a class="depth-2" href="#layout">Layout</a>
+<a class="depth-2" href="#picking-the-right-tool">Picking the right tool</a>
+<a class="depth-2" href="#notes-on-freshness">Notes on freshness</a>
+<a class="depth-2" href="#contributing-updating">Contributing / updating</a>
+</aside>
+<main>
+<h1>Resolume Development Docs</h1>
+<div class="meta">Resolume Arena / Avenue 7.20+ · 2026-04-30</div>
+<p>A developer-oriented documentation set for <strong>Resolume Arena and Avenue 7.x</strong> covering OSC control, FFGL plugin development, and ISF shader authoring. Written against the current state of Resolume 7.20+ and verified against official sources and actively-maintained third-party references.</p>
+<blockquote><strong>Why this exists.</strong> Most online Resolume tutorials still reference the Resolume 4/5 era — wrong OSC namespaces, deprecated SDK paths, and outdated shader patterns. These docs are written from current sources and the FFGL master branch.</blockquote>
+<h2 id="languages">Languages</h2>
+<ul>
+<li><strong>English</strong> — this index → see the docs below</li>
+<li><strong>한국어</strong> — <a href="README.ko.html">README.ko.md</a></li>
+</ul>
+<h2 id="documents">Documents</h2>
+<h3 id="osc-control">OSC Control</h3>
+<p>Control Resolume from any OSC-capable application (TouchOSC, Companion, Max/MSP, your own code). Covers the current <code>/composition/...</code> namespace, value modifiers, querying state, and the related REST/WebSocket APIs.</p>
+<ul>
+<li><a href="osc/osc-reference.en.html">osc/osc-reference.en.md</a></li>
+</ul>
+<h3 id="ffgl-plugin-development-c">FFGL Plugin Development (C++)</h3>
+<p>Build native effects, sources, and mixers in C++ using the official FFGL SDK. Covers SDK setup, plugin lifecycle, parameter types, color components, audio reactivity, and the most common pitfalls.</p>
+<ul>
+<li><a href="ffgl/ffgl-guide.en.html">ffgl/ffgl-guide.en.md</a></li>
+</ul>
+<h3 id="isf-shader-authoring">ISF Shader Authoring</h3>
+<p>Write Resolume effects, sources, and transitions as JSON-prefixed GLSL fragment shaders. No build system, no SDK — drop a <code>.fs</code> file and it shows up in Resolume.</p>
+<ul>
+<li><a href="isf/isf-guide.en.html">isf/isf-guide.en.md</a></li>
+</ul>
+<h3 id="wire-patch-development">Wire Patch Development</h3>
+<p>Build Sources / Effects / Mixers as node-based patches in Resolume Wire. Combine procedural visuals, audio reactivity, ISF shaders, and OSC/MIDI logic without writing code. Compile to <code>.wired</code> / <code>.cwired</code> for Arena/Avenue.</p>
+<ul>
+<li><a href="wire/wire-guide.en.html">wire/wire-guide.en.md</a></li>
+</ul>
+<h2 id="layout">Layout</h2>
+<pre><code>resolume-dev-docs/
+├── index.html                    ← GitHub Pages entry (= README.en.html)
+├── README.{en,ko}.{md,html}      ← index, both formats
+├── osc/
+│   └── osc-reference.{en,ko}.{md,html}
+├── ffgl/
+│   └── ffgl-guide.{en,ko}.{md,html}
+├── isf/
+│   └── isf-guide.{en,ko}.{md,html}
+├── wire/
+│   └── wire-guide.{en,ko}.{md,html}
+└── assets/
+    └── style.css                 ← shared styles for the HTML site</code></pre>
+<p>Markdown is the canonical source. The <code>.html</code> files are pre-built and committed so the site can be served directly via <strong>GitHub Pages</strong> (no build step). When you edit Markdown, regenerate the matching HTML before committing.</p>
+<h2 id="picking-the-right-tool">Picking the right tool</h2>
+<table>
+<thead><tr>
+<th>You want to...</th>
+<th>Use</th>
+</tr></thead><tbody>
+<tr>
+<td>Trigger clips / change parameters from a controller</td>
+<td>OSC</td>
+</tr>
+<tr>
+<td>Build complex tour control surfaces, get state feedback, manipulate structure</td>
+<td>REST/WebSocket API (in OSC doc §15)</td>
+</tr>
+<tr>
+<td>Write a new visual effect or generator quickly, only fragment-shader logic</td>
+<td>ISF</td>
+</tr>
+<tr>
+<td>Need access to host audio data, want feedback buffers with full GL control</td>
+<td>ISF (audio inputs + PASSES)</td>
+</tr>
+<tr>
+<td>Compose multiple sources, math, audio reactivity, OSC/MIDI logic visually</td>
+<td><strong>Wire</strong></td>
+</tr>
+<tr>
+<td>Build a high-performance native effect, custom GL pipeline, or anything beyond a single fragment shader</td>
+<td>FFGL</td>
+</tr>
+<tr>
+<td>Distribute to non-technical users with a polished UX</td>
+<td>FFGL (compiled binary) or Wire <code>.cwired</code> via Juicebar</td>
+</tr>
+</tbody></table>
+<h2 id="notes-on-freshness">Notes on freshness</h2>
+<ul>
+<li><strong>OSC</strong>: the namespace shown here is verified against Resolume 7.20+, the actively-maintained Bitfocus Companion module source, and Resolume's static OSC list. The <code>/composition/...</code> paths have been stable since Resolume 7.0; what's shifted across point releases is mostly added paths (groups, layer groups, transport sub-paths), not breaking changes.</li>
+<li><strong>FFGL</strong>: the master SDK branch is documented here, with class names, FF_TYPE_* constants, and lifecycle methods verified against the headers in <code>github.com/resolume/ffgl</code>. If you target older Resolume installs, use the <code>v2.2</code> tag.</li>
+<li><strong>ISF</strong>: the spec hasn't moved in years. ISF v2.0 is current and Resolume's implementation tracks it directly. Function names verified against the VVISF-GL reference parser.</li>
+<li><strong>Wire</strong>: documented against Wire 7.26 and the official Resolume support pages. Patch file formats (<code>.wired</code> / <code>.cwired</code>), node categories, flow types, and recent additions (Color type 7.20, Parameter Grouping 7.21, Patch Navigator 7.24) reflect the current release.</li>
+</ul>
+<blockquote><strong>Verification.</strong> This documentation has been cross-checked against multiple independent sources: Resolume's official support pages, the FFGL SDK source, the ISF spec repository, the Bitfocus Companion module, and several community OSC implementations. See each doc's Sources section for citations.</blockquote>
+<h2 id="contributing-updating">Contributing / updating</h2>
+<p>When Resolume ships a new release that adds OSC paths or FFGL features:</p>
+<ol>
+<li>Edit the relevant <code>.md</code> file (English first, then mirror to Korean).</li>
+<li>Update the version line in the frontmatter.</li>
+<li>Commit.</li>
+</ol>
+</main>
+</div>
+</body>
+</html>

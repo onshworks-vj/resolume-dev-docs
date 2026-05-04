@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume Arena / Avenue 7 — OSC Reference</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">English</a>
+<a href="osc-reference.ko.html">한국어</a>
+</div>
+<h2>Home</h2>
+<a href="../README.en.html">← Index</a>
+<h2>Contents</h2>
+<a class="depth-2" href="#1-setup">1. Setup</a>
+<a class="depth-2" href="#2-address-conventions">2. Address Conventions</a>
+<a class="depth-3" href="#value-modifiers">Value modifiers</a>
+<a class="depth-2" href="#3-composition">3. Composition</a>
+<a class="depth-3" href="#tempo">Tempo</a>
+<a class="depth-3" href="#crossfader-composition-level-only">Crossfader (composition-level only)</a>
+<a class="depth-3" href="#dashboard-links">Dashboard links</a>
+<a class="depth-2" href="#4-layers">4. Layers</a>
+<a class="depth-3" href="#video-mixer-per-layer">Video mixer (per layer)</a>
+<a class="depth-2" href="#5-clips">5. Clips</a>
+<a class="depth-3" href="#transport-playhead-per-clip">Transport (playhead) per clip</a>
+<a class="depth-3" href="#cuepoints-per-clip">Cuepoints per clip</a>
+<a class="depth-3" href="#other-clip-parameters">Other clip parameters</a>
+<a class="depth-2" href="#6-columns">6. Columns</a>
+<a class="depth-2" href="#7-decks">7. Decks</a>
+<a class="depth-2" href="#8-layer-groups">8. Layer Groups</a>
+<a class="depth-2" href="#9-effects">9. Effects</a>
+<a class="depth-3" href="#effect-parameter-types-youll-encounter">Effect parameter types you&#x27;ll encounter</a>
+<a class="depth-2" href="#10-source-generator-parameters">10. Source / Generator parameters</a>
+<a class="depth-2" href="#11-querying-state">11. Querying state (`?`)</a>
+<a class="depth-2" href="#12-receiving-updates">12. Receiving updates</a>
+<a class="depth-2" href="#13-examples">13. Examples</a>
+<a class="depth-3" href="#trigger-clip-in-column-3-of-layer-2">Trigger clip in column 3 of layer 2</a>
+<a class="depth-3" href="#set-composition-master-to-75">Set composition master to 75%</a>
+<a class="depth-3" href="#increase-layer-1-opacity-by-10">Increase layer 1 opacity by 10%</a>
+<a class="depth-3" href="#tap-tempo-then-re-sync">Tap tempo, then re-sync</a>
+<a class="depth-3" href="#read-current-opacity-of-layer-2">Read current opacity of layer 2</a>
+<a class="depth-3" href="#stop-everything">Stop everything</a>
+<a class="depth-2" href="#14-common-gotchas">14. Common gotchas</a>
+<a class="depth-2" href="#15-beyond-osc-rest-and-websocket-api">15. Beyond OSC: REST and WebSocket API</a>
+<a class="depth-3" href="#parameter-actions-websocket">Parameter actions (WebSocket)</a>
+<a class="depth-3" href="#structural-actions-websocket">Structural actions (WebSocket)</a>
+<a class="depth-2" href="#sources">Sources</a>
+</aside>
+<main>
+<h1>Resolume Arena / Avenue 7 — OSC Reference</h1>
+<div class="meta">Resolume 7.20+ (verified up to 7.26) · 2026-04-30 (verified)</div>
+<p>This is a practical, up-to-date reference for controlling <strong>Resolume Arena and Avenue 7.x</strong> via Open Sound Control. All paths below are valid in 7.20+ and verified against the official <code>resolume.com/support/en/osc</code> page and the actively-maintained Bitfocus Companion module (<code>bitfocus/companion-module-resolume-arena</code>).</p>
+<blockquote><strong>Why this exists.</strong> Most OSC tutorials online still use the Resolume 4/5 namespace (<code>/layer1/clip3/...</code>). That namespace is <strong>gone</strong> in Resolume 7. The current namespace is hierarchical and starts with <code>/composition</code>.</blockquote>
+<hr>
+<h2 id="1-setup">1. Setup</h2>
+<p>Enable OSC in <strong>Preferences → OSC</strong>:</p>
+<table>
+<thead><tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Default</th>
+</tr></thead><tbody>
+<tr>
+<td>Incoming OSC port</td>
+<td>UDP port Resolume listens on</td>
+<td><strong>7000</strong></td>
+</tr>
+<tr>
+<td>Outgoing OSC host</td>
+<td>Where Resolume sends feedback</td>
+<td><code>127.0.0.1</code></td>
+</tr>
+<tr>
+<td>Outgoing OSC port</td>
+<td>UDP port for feedback</td>
+<td><strong>7001</strong></td>
+</tr>
+<tr>
+<td>OSC output preset</td>
+<td>Selects which messages are sent out</td>
+<td>"Output All OSC Messages" for full feedback</td>
+</tr>
+</tbody></table>
+<p><strong>Bidirectional rule.</strong> Resolume sends a query response back to <strong>the port the sender used</strong>, not to the configured outgoing port. If you want to receive responses to <code>?</code> queries, send from the same UDP socket you're listening on.</p>
+<hr>
+<h2 id="2-address-conventions">2. Address Conventions</h2>
+<p>A Resolume 7 OSC address looks like:</p>
+<pre><code>/composition/layers/1/clips/3/connect</code></pre>
+<p>Three rules to remember:</p>
+<ol>
+<li><strong>Always start with <code>/composition</code>.</strong> There is no shortcut namespace.</li>
+<li><strong>Indices are 1-based.</strong> Layer 1, clip 1, deck 1, etc. There is no layer 0.</li>
+<li><strong>Triggers need a value.</strong> Sending an integer <code>1</code> triggers, then <code>0</code> releases. Resolume treats the rising edge as the trigger event.</li>
+</ol>
+<h3 id="value-modifiers">Value modifiers</h3>
+<p>Any settable parameter accepts these prefixes as the <strong>first OSC argument</strong> (string), followed by the value:</p>
+<table>
+<thead><tr>
+<th>Prefix</th>
+<th>Meaning</th>
+<th>Example</th>
+</tr></thead><tbody>
+<tr>
+<td>(none)</td>
+<td>Absolute set</td>
+<td><code>0.5</code></td>
+</tr>
+<tr>
+<td><code>+</code></td>
+<td>Increment</td>
+<td><code>"+", 1</code></td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>Decrement</td>
+<td><code>"-", 1</code></td>
+</tr>
+<tr>
+<td><code>*</code></td>
+<td>Multiply</td>
+<td><code>"*", 2</code></td>
+</tr>
+<tr>
+<td><code>?</code></td>
+<td>Query current value (no value arg)</td>
+<td><code>"?"</code></td>
+</tr>
+</tbody></table>
+<blockquote><strong>Caveat — relative modifiers with floats.</strong> As of Resolume 7.x the relative <code>+</code> / <code>-</code> / <code>*</code> modifiers are unreliable for <strong>float</strong> parameters; only <strong>integer</strong> arguments are honored consistently. If you need fractional increments on opacity, etc., compute the absolute value on the client side and send that instead. (<a href="https://github.com/bitfocus/companion-module-resolume-arena/issues/9">Companion issue #9</a>, Resolume forum t=21959.)</blockquote>
+<blockquote><strong>Tip.</strong> The fastest way to discover an address is to enter <strong>Shortcuts → Edit OSC</strong> in Resolume, then click the control you want. The Shortcuts panel shows the exact address.</blockquote>
+<hr>
+<h2 id="3-composition">3. Composition</h2>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/master</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Composition master output level</td>
+</tr>
+<tr>
+<td><code>/composition/video/opacity</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Composition video opacity</td>
+</tr>
+<tr>
+<td><code>/composition/audio/volume</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Composition audio volume</td>
+</tr>
+<tr>
+<td><code>/composition/speed</code></td>
+<td><span class="tag float">float 0–2</span></td>
+<td>Master playback speed (1.0 = normal)</td>
+</tr>
+<tr>
+<td><code>/composition/direction</code></td>
+<td><span class="tag int">int</span></td>
+<td>Playback direction (<code>0</code> backwards, <code>1</code> forwards, <code>2</code> pause, <code>3</code> random)</td>
+</tr>
+<tr>
+<td><code>/composition/disconnectall</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Stop all playing clips</td>
+</tr>
+<tr>
+<td><code>/composition/connectnextcolumn</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger next column</td>
+</tr>
+<tr>
+<td><code>/composition/connectprevcolumn</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger previous column</td>
+</tr>
+<tr>
+<td><code>/composition/connectspecificcolumn</code></td>
+<td><span class="tag int">int</span></td>
+<td>Trigger column by index (1-based)</td>
+</tr>
+<tr>
+<td><code>/composition/selectnextdeck</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Move selection to next deck</td>
+</tr>
+<tr>
+<td><code>/composition/selectprevdeck</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Move selection to previous deck</td>
+</tr>
+<tr>
+<td><code>/composition/selectspecificdeck</code></td>
+<td><span class="tag int">int</span></td>
+<td>Select deck by index</td>
+</tr>
+<tr>
+<td><code>/composition/name</code></td>
+<td><span class="tag string">string</span></td>
+<td>Composition name (read/write)</td>
+</tr>
+<tr>
+<td><code>/composition/recorder/record</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Toggle recording (Arena)</td>
+</tr>
+</tbody></table>
+<h3 id="tempo">Tempo</h3>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/tempocontroller/tempo</code></td>
+<td><span class="tag float">float</span></td>
+<td>BPM (range 2.0–500.0)</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempotap</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Tap tempo</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/resync</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Re-sync the playhead</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempopush</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Nudge phase forward</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempopull</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Nudge phase backward</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempoinc</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Increase BPM by 1</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempodec</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Decrease BPM by 1</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempodividetwo</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Halve BPM</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/tempomultiplytwo</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Double BPM</td>
+</tr>
+<tr>
+<td><code>/composition/tempocontroller/metronome</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Toggle audible metronome</td>
+</tr>
+</tbody></table>
+<h3 id="crossfader-composition-level-only">Crossfader (composition-level only)</h3>
+<p>In Resolume the crossfader sits at the composition level — there is <strong>no per-layer crossfader address</strong>. Layers opt into A or B via <code>crossfadergroup</code>.</p>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/crossfader/phase</code></td>
+<td><span class="tag float">float -1..1</span></td>
+<td>A/B crossfader position</td>
+</tr>
+<tr>
+<td><code>/composition/crossfader/sidea</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Snap to side A</td>
+</tr>
+<tr>
+<td><code>/composition/crossfader/sideb</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Snap to side B</td>
+</tr>
+<tr>
+<td><code>/composition/crossfader/curve</code></td>
+<td><span class="tag int">int</span></td>
+<td>Curve shape choice</td>
+</tr>
+<tr>
+<td><code>/composition/crossfader/behaviour</code></td>
+<td><span class="tag int">int</span></td>
+<td>Behaviour mode</td>
+</tr>
+<tr>
+<td><code>/composition/crossfader/video/mixer/blendmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Blend mode for the crossfader</td>
+</tr>
+</tbody></table>
+<h3 id="dashboard-links">Dashboard links</h3>
+<p>Resolume exposes 8 user-mappable composition-level shortcuts:</p>
+<pre><code>/composition/dashboard/link1   …   /composition/dashboard/link8</code></pre>
+<p>These also exist per-layer and per-clip (<code>/composition/layers/{L}/dashboard/link{N}</code>, <code>…/clips/{C}/dashboard/link{N}</code>).</p>
+<hr>
+<h2 id="4-layers">4. Layers</h2>
+<p><code>{L}</code> = layer index (1-based).</p>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/select</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Select layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clear</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Stop the active clip on this layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/bypassed</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Bypass layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/solo</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Solo layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/master</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Layer master</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/name</code></td>
+<td><span class="tag string">string</span></td>
+<td>Layer name (read/write)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/video/opacity</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Layer opacity</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/audio/volume</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Layer volume</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/audio/pan</code></td>
+<td><span class="tag float">float</span></td>
+<td>Layer audio pan</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/speed</code></td>
+<td><span class="tag float">float</span></td>
+<td>Layer playback speed</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/direction</code></td>
+<td><span class="tag int">int</span></td>
+<td><code>0</code> backwards / <code>1</code> forwards / <code>2</code> pause / <code>3</code> random</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/transition/duration</code></td>
+<td><span class="tag float">float</span></td>
+<td>Crossfade duration in seconds</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/connectnextclip</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger next clip on layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/connectprevclip</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger previous clip on layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/connectspecificclip</code></td>
+<td><span class="tag int">int</span></td>
+<td>Trigger clip by index on this layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/autopilot</code></td>
+<td><span class="tag int">int</span></td>
+<td>Autopilot mode (Off / Next clip / etc.)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/faderstart</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Layer fader-start enabled</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/ignorecolumntrigger</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Skip column triggers for this layer</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/playmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Layer play mode</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/crossfadergroup</code></td>
+<td><span class="tag int">int</span></td>
+<td>Assign layer to crossfader side (Off / A / B)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/maskmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Layer mask mode</td>
+</tr>
+</tbody></table>
+<h3 id="video-mixer-per-layer">Video mixer (per layer)</h3>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/video/mixer/blendmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Blend mode index for the clip layer (Add, Lighten, etc.)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/video/transition/mixer/blendmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Blend mode used during clip transitions</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="5-clips">5. Clips</h2>
+<p><code>{L}</code> = layer, <code>{C}</code> = column index.</p>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/connect</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger this clip (most common operation)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/select</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Select clip without triggering</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/name</code></td>
+<td><span class="tag string">string</span></td>
+<td>Clip name (read/write)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/video/opacity</code></td>
+<td><span class="tag float">float</span></td>
+<td>Per-clip opacity override</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/audio/volume</code></td>
+<td><span class="tag float">float</span></td>
+<td>Per-clip volume</td>
+</tr>
+</tbody></table>
+<h3 id="transport-playhead-per-clip">Transport (playhead) per clip</h3>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Playhead position normalized</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/speed</code></td>
+<td><span class="tag float">float</span></td>
+<td>Per-clip speed</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/playdirection</code></td>
+<td><span class="tag int">int</span></td>
+<td><code>0</code> backwards / <code>1</code> forwards / <code>2</code> pause / <code>3</code> random</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/playmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>Play mode (loop / once / bounce / random)</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/playmodeaway</code></td>
+<td><span class="tag int">int</span></td>
+<td>Play mode when clip is not connected</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/syncmode</code></td>
+<td><span class="tag int">int</span></td>
+<td>BPM sync mode</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/dividetwo</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Halve playback speed</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/position/behaviour/multiplytwo</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Double playback speed</td>
+</tr>
+</tbody></table>
+<h3 id="cuepoints-per-clip">Cuepoints per clip</h3>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/cuepoints/setparams/set{N}</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Store current playhead as cuepoint N</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transport/cuepoints/jumpparams/jump{N}</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Jump to stored cuepoint N</td>
+</tr>
+</tbody></table>
+<h3 id="other-clip-parameters">Other clip parameters</h3>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/autopilot</code></td>
+<td><span class="tag int">int</span></td>
+<td>Per-clip autopilot</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/beatsnap</code></td>
+<td><span class="tag int">int</span></td>
+<td>Beat snap value</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/cliptarget</code></td>
+<td><span class="tag int">int</span></td>
+<td>Clip target</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/cliptriggerstyle</code></td>
+<td><span class="tag int">int</span></td>
+<td>Trigger style</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/faderstart</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Fader-start enabled</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/ignorecolumntrigger</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Skip column trigger</td>
+</tr>
+<tr>
+<td><code>/composition/layers/{L}/clips/{C}/transporttype</code></td>
+<td><span class="tag int">int</span></td>
+<td>Transport type</td>
+</tr>
+</tbody></table>
+<blockquote><strong>Per-clip audio volume</strong> is implementation-dependent. Some Resolume builds expose <code>/composition/layers/{L}/clips/{C}/audio/volume</code>; on others audio volume is layer-only. Verify in <strong>Shortcuts → Edit OSC</strong> before relying on it.</blockquote>
+<hr>
+<h2 id="6-columns">6. Columns</h2>
+<p><code>{C}</code> = column index.</p>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/columns/{C}/connect</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Fire entire column (every layer)</td>
+</tr>
+<tr>
+<td><code>/composition/columns/{C}/name</code></td>
+<td><span class="tag string">string</span></td>
+<td>Column name (read/write)</td>
+</tr>
+<tr>
+<td><code>/composition/columns/{C}/selected</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Read-only feedback: is this column selected</td>
+</tr>
+</tbody></table>
+<blockquote><strong>No "select column" action.</strong> Resolume does not expose an OSC address to select a column without connecting it. Use <code>connect</code> to fire the column (which also selects it), or query <code>selected</code> with <code>?</code> to read the current selection.</blockquote>
+<hr>
+<h2 id="7-decks">7. Decks</h2>
+<p><code>{D}</code> = deck index.</p>
+<table>
+<thead><tr>
+<th>Address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/decks/{D}/select</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Select deck</td>
+</tr>
+<tr>
+<td><code>/composition/decks/{D}/name</code></td>
+<td><span class="tag string">string</span></td>
+<td>Deck name (read/write)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="8-layer-groups">8. Layer Groups</h2>
+<p>Resolume 7 introduced <strong>layer groups</strong>. The naming differs by protocol — this isn't an alias situation, it's two distinct namespaces:</p>
+<table>
+<thead><tr>
+<th>Protocol</th>
+<th>Namespace</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>OSC</strong></td>
+<td><code>/composition/groups/{G}/...</code></td>
+</tr>
+<tr>
+<td><strong>REST / WebSocket</strong></td>
+<td><code>/composition/layergroups/{G}/...</code></td>
+</tr>
+</tbody></table>
+<p>If you mix protocols (e.g. send OSC and listen on the WebSocket), expect to see both forms. The Bitfocus Companion module uses both: <code>groups</code> for OSC sends and <code>layergroups</code> for REST API calls.</p>
+<p><code>{G}</code> = group index.</p>
+<table>
+<thead><tr>
+<th>Address (OSC)</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/composition/groups/{G}/select</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Select group</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/bypassed</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Bypass entire group</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/solo</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Solo group</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/master</code></td>
+<td><span class="tag float">float</span></td>
+<td>Group master</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/speed</code></td>
+<td><span class="tag float">float</span></td>
+<td>Group speed</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/direction</code></td>
+<td><span class="tag int">int</span></td>
+<td><code>0</code> backwards / <code>1</code> forwards / <code>2</code> pause / <code>3</code> random</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/video/opacity</code></td>
+<td><span class="tag float">float</span></td>
+<td>Group opacity</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/audio/volume</code></td>
+<td><span class="tag float">float</span></td>
+<td>Group volume</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/columns/{C}/connect</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Trigger column within group</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/columns/{C}/select</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Select column within group</td>
+</tr>
+<tr>
+<td><code>/composition/groups/{G}/disconnectlayers</code></td>
+<td><span class="tag trigger">trigger</span></td>
+<td>Stop all clips in group</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="9-effects">9. Effects</h2>
+<p>Effects are accessible by walking down the parameter tree. An effect's parameters appear under whichever entity it is attached to (composition, group, layer, or clip):</p>
+<pre><code>/composition/video/effects/{N}/...
+/composition/layers/{L}/video/effects/{N}/...
+/composition/layers/{L}/clips/{C}/video/effects/{N}/...
+/composition/groups/{G}/video/effects/{N}/...</code></pre>
+<p><code>{N}</code> is the effect's slot index in the effect chain (1-based). Each effect exposes:</p>
+<table>
+<thead><tr>
+<th>Sub-address</th>
+<th>Type</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/bypassed</code></td>
+<td><span class="tag bool">bool</span></td>
+<td>Effect bypass</td>
+</tr>
+<tr>
+<td><code>/mix</code></td>
+<td><span class="tag float">float 0–1</span></td>
+<td>Wet/dry mix</td>
+</tr>
+<tr>
+<td><code>/{paramName}</code></td>
+<td><span class="tag float">float</span></td>
+<td>Effect-specific parameters (camelCase)</td>
+</tr>
+</tbody></table>
+<blockquote><strong>Discover effect addresses.</strong> The reliable way is: in Resolume, <strong>right-click the effect parameter → Shortcuts → Edit OSC → click the parameter</strong>. The address shown is exact and tracks the current effect order.</blockquote>
+<h3 id="effect-parameter-types-youll-encounter">Effect parameter types you'll encounter</h3>
+<ul>
+<li><code>float</code> (most parameters) — normalized 0–1</li>
+<li><code>int</code> (option choices) — discrete enum</li>
+<li><code>bool</code> (toggles)</li>
+<li><code>color</code> — usually exposed as separate <code>r</code>, <code>g</code>, <code>b</code>, <code>a</code> floats or as a single hex int</li>
+</ul>
+<hr>
+<h2 id="10-source-generator-parameters">10. Source / Generator parameters</h2>
+<p>Native Resolume sources (Solid, Gradients, etc.) and FFGL/ISF generators expose their parameters under the clip's <code>video/source/</code> subtree:</p>
+<pre><code>/composition/layers/{L}/clips/{C}/video/source/{paramName}</code></pre>
+<p>The parameter names match what you see in the Resolume UI (camelCase, no spaces).</p>
+<hr>
+<h2 id="11-querying-state">11. Querying state (<code>?</code>)</h2>
+<p>Send an OSC message with a single string argument <code>"?"</code> to read the current value:</p>
+<pre><code>/composition/layers/1/video/opacity   "?"</code></pre>
+<p>Resolume replies on the same UDP socket (port-matched) with the current value as the appropriate type.</p>
+<hr>
+<h2 id="12-receiving-updates">12. Receiving updates</h2>
+<p>If you set the OSC output preset to <strong>Output All OSC Messages</strong>, Resolume continuously broadcasts:</p>
+<ul>
+<li>Every parameter change (user-driven or automated)</li>
+<li>Tempo, beat, and phase</li>
+<li>Activity feedback (clip connects, selections)</li>
+</ul>
+<p>Listen on the configured outgoing port (default 7001) and parse OSC messages — same address scheme as for sending.</p>
+<hr>
+<h2 id="13-examples">13. Examples</h2>
+<h3 id="trigger-clip-in-column-3-of-layer-2">Trigger clip in column 3 of layer 2</h3>
+<pre><code>/composition/layers/2/clips/3/connect   1</code></pre>
+<h3 id="set-composition-master-to-75">Set composition master to 75%</h3>
+<pre><code>/composition/master   0.75</code></pre>
+<h3 id="increase-layer-1-opacity-by-10">Increase layer 1 opacity by 10%</h3>
+<p>The relative modifiers don't work reliably with float values in Resolume 7 (see §2). Compute the absolute target on the client side:</p>
+<pre><code># After querying the current value as 0.4
+/composition/layers/1/video/opacity   0.5</code></pre>
+<h3 id="tap-tempo-then-re-sync">Tap tempo, then re-sync</h3>
+<pre><code>/composition/tempocontroller/tempotap    1
+/composition/tempocontroller/resync      1</code></pre>
+<h3 id="read-current-opacity-of-layer-2">Read current opacity of layer 2</h3>
+<pre><code>/composition/layers/2/video/opacity   "?"</code></pre>
+<h3 id="stop-everything">Stop everything</h3>
+<pre><code>/composition/disconnectall   1</code></pre>
+<hr>
+<h2 id="14-common-gotchas">14. Common gotchas</h2>
+<ol>
+<li><strong>The trigger pattern is <code>1</code> then <code>0</code>.</strong> Many "didn't fire" issues are because only <code>1</code> was sent. Companion sends <code>1</code>, waits ~50ms, sends <code>0</code>. Replicate this in your own controllers.</li>
+<li><strong><code>/layer1/...</code> style addresses don't work.</strong> That's the Resolume 4/5 namespace. Migrate to <code>/composition/layers/1/...</code>.</li>
+<li><strong>Indices are 1-based, not 0.</strong> Sending to layer <code>0</code> does nothing.</li>
+<li><strong>Use <code>selectedlayer</code> for context-relative.</strong> Resolume exposes <code>/composition/selectedlayer/...</code> and <code>/composition/selectedclip/...</code> if you want to operate on whatever the user has selected.</li>
+<li><strong>OSC output preset matters.</strong> If your "Output All OSC Messages" preset isn't selected, you won't see most feedback messages.</li>
+<li><strong>Effect slot indices change when reordering.</strong> Don't hard-code effect slot numbers if your operator reorders effects mid-show. Use <code>/by-id/...</code> via the REST/WebSocket API for stable IDs.</li>
+</ol>
+<hr>
+<h2 id="15-beyond-osc-rest-and-websocket-api">15. Beyond OSC: REST and WebSocket API</h2>
+<p>For state-rich control (thumbnails, structure changes, stable IDs), Resolume exposes a REST and WebSocket API on the same port:</p>
+<ul>
+<li>REST: <code>http://<host>:<port>/api/v1/composition</code></li>
+<li>WebSocket: <code>ws://<host>:<port>/api/v1</code></li>
+<li>Default port: <strong>8080</strong> for Arena/Avenue, <strong>8081</strong> for Wire (set in Preferences → Webserver)</li>
+<li>API doc: <code>http://<host>:<port>/api/v1/</code> (Swagger UI served live)</li>
+<li>Introduced in <strong>Resolume 7.8</strong>.</li>
+</ul>
+<h3 id="parameter-actions-websocket">Parameter actions (WebSocket)</h3>
+<p>Lowercase verbs: <code>subscribe</code>, <code>unsubscribe</code>, <code>set</code>, <code>get</code>, <code>reset</code>, <code>trigger</code>.</p>
+<pre><code class="lang-json">{ "action": "set", "parameter": "/composition/layers/1/video/opacity", "value": 0.5 }</code></pre>
+<p><code>value</code> is required for <code>set</code> only. Parameter paths use either <code>/parameter/by-id/{id}</code> (stable across reorders) or the same logical path as OSC.</p>
+<h3 id="structural-actions-websocket">Structural actions (WebSocket)</h3>
+<p>A separate action family for adding/removing entities, with <code>path</code> + optional <code>body</code>:</p>
+<pre><code class="lang-json">{ "action": "post",   "id": "my_layer", "path": "/composition/layers/add" }
+{ "action": "remove", "path": "/composition/layers/3" }</code></pre>
+<p>The response echoes the <code>id</code> and includes <code>error: null</code> on success.</p>
+<blockquote>Use the REST/WebSocket API when you need: stable parameter IDs that survive reordering, clip thumbnails, structural edits (add/remove layers, columns, effects), or change subscriptions.</blockquote>
+<hr>
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://resolume.com/support/en/osc">resolume.com/support/en/osc</a> — official OSC support page</li>
+<li><a href="https://resolume.com/support/en/restapi">resolume.com/support/en/restapi</a> — REST API</li>
+<li><a href="https://resolume.com/support/en/websocket-api">resolume.com/support/en/websocket-api</a> — WebSocket API</li>
+<li><a href="https://resolume.com/docs/restapi/">resolume.com/docs/restapi/</a> — Swagger reference</li>
+<li><a href="https://github.com/bitfocus/companion-module-resolume-arena">github.com/bitfocus/companion-module-resolume-arena</a> — most actively maintained third-party reference</li>
+</ul>
+</main>
+</div>
+</body>
+</html>

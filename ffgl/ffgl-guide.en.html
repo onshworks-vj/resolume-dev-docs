@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FFGL Plugin Development Guide for Resolume 7</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="lang-toggle">
+<a class="active" href="#">English</a>
+<a href="ffgl-guide.ko.html">한국어</a>
+</div>
+<h2>Home</h2>
+<a href="../README.en.html">← Index</a>
+<h2>Contents</h2>
+<a class="depth-2" href="#1-plugin-types">1. Plugin types</a>
+<a class="depth-2" href="#2-sdk-and-toolchain">2. SDK and toolchain</a>
+<a class="depth-3" href="#versions-and-what-they-unlocked">Versions and what they unlocked</a>
+<a class="depth-3" href="#platform-requirements">Platform requirements</a>
+<a class="depth-2" href="#3-quickstart-duplicate-an-example">3. Quickstart — duplicate an example</a>
+<a class="depth-3" href="#macos">macOS</a>
+<a class="depth-3" href="#windows">Windows</a>
+<a class="depth-2" href="#4-the-cffglplugininfo-declaration">4. The `CFFGLPluginInfo` declaration</a>
+<a class="depth-2" href="#5-the-plugin-lifecycle">5. The plugin lifecycle</a>
+<a class="depth-3" href="#processopengl-rules">`ProcessOpenGL` rules</a>
+<a class="depth-2" href="#6-parameter-types">6. Parameter types</a>
+<a class="depth-3" href="#color-components">Color components</a>
+<a class="depth-3" href="#position-components-separate-from-color">Position components (separate from color)</a>
+<a class="depth-3" href="#param-groups-ffgl-22-resolume-73">Param groups (FFGL 2.2+, Resolume 7.3+)</a>
+<a class="depth-2" href="#7-the-ffglquickstart-shortcut-layer">7. The `ffglquickstart` shortcut layer</a>
+<a class="depth-2" href="#8-useful-sdk-utilities">8. Useful SDK utilities</a>
+<a class="depth-2" href="#9-audio-reactivity">9. Audio reactivity</a>
+<a class="depth-2" href="#10-value-change-events-master-branch-resolume-74">10. Value-change events (master branch / Resolume 7.4+)</a>
+<a class="depth-2" href="#11-embedded-thumbnails-ffgl-21">11. Embedded thumbnails (FFGL 2.1+)</a>
+<a class="depth-2" href="#12-top-left-texture-orientation-ffgl-22-resolume-731">12. Top-left texture orientation (FFGL 2.2+ / Resolume 7.3.1+)</a>
+<a class="depth-2" href="#13-installation-paths-release-builds">13. Installation paths (release builds)</a>
+<a class="depth-2" href="#14-debugging">14. Debugging</a>
+<a class="depth-2" href="#15-common-pitfalls">15. Common pitfalls</a>
+<a class="depth-2" href="#16-distribution">16. Distribution</a>
+<a class="depth-2" href="#sources">Sources</a>
+</aside>
+<main>
+<h1>FFGL Plugin Development Guide for Resolume 7</h1>
+<div class="meta">FFGL 2.3 / Resolume 7.3+ (master verified against 7.20+) · 2026-04-30 (verified against SDK source)</div>
+<p>This guide covers writing <strong>FFGL (FreeFrame GL) plugins</strong> for Resolume Arena and Avenue 7. FFGL is the C++ / OpenGL plugin format Resolume uses for native effects, sources, and mixers — it's the high-performance route. For shader-only work without C++, see the <a href="../isf/isf-guide.en.html">ISF guide</a> instead.</p>
+<hr>
+<h2 id="1-plugin-types">1. Plugin types</h2>
+<p>Resolume can host three FFGL plugin types, each backed by a base class in the SDK:</p>
+<table>
+<thead><tr>
+<th>Type</th>
+<th>C++ base</th>
+<th>Inputs</th>
+<th>Use case</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FF_SOURCE</code></td>
+<td><code>ffglqs::Source</code></td>
+<td>0</td>
+<td>Generators, procedural content (Gradients, Particles, Text)</td>
+</tr>
+<tr>
+<td><code>FF_EFFECT</code></td>
+<td><code>ffglqs::Effect</code></td>
+<td>1</td>
+<td>Filters applied to a clip (color, distort, blur)</td>
+</tr>
+<tr>
+<td><code>FF_MIXER</code></td>
+<td><code>ffglqs::Mixer</code></td>
+<td>2</td>
+<td>Transitions / blend modes between the A and B layers</td>
+</tr>
+</tbody></table>
+<p>The plugin type is set in <code>CFFGLPluginInfo</code> (see §4) and determines which inputs the host provides via <code>ProcessOpenGL</code>.</p>
+<hr>
+<h2 id="2-sdk-and-toolchain">2. SDK and toolchain</h2>
+<p>The official SDK is <strong><code>github.com/resolume/ffgl</code></strong>.</p>
+<ul>
+<li><strong>Master branch</strong> — latest features and bugs. Plugins built from master require <strong>Resolume 7.3.1+</strong>.</li>
+<li><strong><code>v2.2</code> tag</strong> — most recent stable release; safest if you target older Resolume installs.</li>
+</ul>
+<h3 id="versions-and-what-they-unlocked">Versions and what they unlocked</h3>
+<table>
+<thead><tr>
+<th>FFGL</th>
+<th>Required Resolume</th>
+<th>Notable additions</th>
+</tr></thead><tbody>
+<tr>
+<td>2.0</td>
+<td>7.0.3+</td>
+<td>Initial Resolume 7 support; FF_TYPE_OPTION, FF_TYPE_BUFFER</td>
+</tr>
+<tr>
+<td>2.1</td>
+<td>7.1+</td>
+<td>Embedded thumbnails, RAII GL state bindings, file params</td>
+</tr>
+<tr>
+<td>2.2</td>
+<td>7.2+</td>
+<td>Param groups (7.3+), top-left texture orientation (7.3.1+), host log hook</td>
+</tr>
+<tr>
+<td>2.3</td>
+<td>7.4+</td>
+<td>Dynamic param display names, value-change events, dynamic option elements (7.4.1+)</td>
+</tr>
+<tr>
+<td>master</td>
+<td>7.3.1+</td>
+<td>OpenGL 4.6 via glew (was glload)</td>
+</tr>
+</tbody></table>
+<h3 id="platform-requirements">Platform requirements</h3>
+<ul>
+<li><strong>macOS</strong>: Xcode (current); build <strong>Universal (Apple Silicon + Intel)</strong> because Resolume 7.11+ runs natively on Apple Silicon and won't load x86_64-only plugins.</li>
+<li><strong>Windows</strong>: Visual Studio 2017 or newer.</li>
+<li><strong>CMake</strong> is the build system going forward; <code>build/osx/FFGLPlugins.xcodeproj</code> and <code>build/windows/FFGLPlugins.sln</code> are still maintained.</li>
+</ul>
+<hr>
+<h2 id="3-quickstart-duplicate-an-example">3. Quickstart — duplicate an example</h2>
+<p>The fastest path to a working plugin is to clone an example.</p>
+<pre><code class="lang-bash">git clone --recursive https://github.com/resolume/ffgl.git
+cd ffgl</code></pre>
+<p>Pick a starting template:</p>
+<ul>
+<li><strong>Effect</strong> → copy <code>source/plugins/AddSubtract</code></li>
+<li><strong>Source</strong> → copy <code>source/plugins/Gradients</code></li>
+<li><strong>Mixer</strong> → copy <code>source/plugins/Add</code></li>
+</ul>
+<h3 id="macos">macOS</h3>
+<ol>
+<li>Open <code>build/osx/FFGLPlugins.xcodeproj</code>.</li>
+<li>Right-click an existing target → <strong>Duplicate</strong>, rename it.</li>
+<li><strong>Build Settings → Packaging → Info.plist</strong> — change to <code>FFGLPlugin-Info.plist</code> (the auto-created <code>xx copy-Info.plist</code> is unwanted; trash it).</li>
+<li>In Finder, duplicate the source folder under <code>source/plugins/<YourName></code> and rename the <code>.cpp</code> / <code>.h</code> files.</li>
+<li>Drag the new folder into Xcode and add to your new target only.</li>
+<li>Replace class names and <code>PluginInfo</code> fields (§4).</li>
+<li>Build (Cmd+B). The artifact is <code>binaries/debug/<YourName>.bundle</code>.</li>
+<li>Copy the <code>.bundle</code> to <code>~/Documents/Resolume Arena/Extra Effects/</code> (or <code>Resolume Avenue</code>) and restart.</li>
+</ol>
+<h3 id="windows">Windows</h3>
+<ol>
+<li>Duplicate a <code>.vcxproj</code> and matching <code>.vcxproj.filters</code> in <code>build/windows/</code>. Rename both.</li>
+<li>Open <code>FFGLPlugins.sln</code> → Solution → <strong>Add → Existing Project</strong> → your new <code>.vcxproj</code>.</li>
+<li>Remove the original <code>.cpp</code>/<code>.h</code> from the new project's source list.</li>
+<li>Duplicate the source folder under <code>source/plugins/<YourName></code> and rename files.</li>
+<li>Drag the new sources onto your new project node in the Solution Explorer.</li>
+<li>Right-click your project → <strong>Set as Startup Project</strong> if you want F5 to build it directly.</li>
+<li>The output is <code>binaries/x64/Debug/<YourName>.dll</code>.</li>
+<li>Copy to <code>%USERPROFILE%\Documents\Resolume Arena\Extra Effects\</code> and restart.</li>
+</ol>
+<blockquote>If <code>glew</code> linker errors appear, add <code>deps/glew.props</code> to your project's property pages.</blockquote>
+<hr>
+<h2 id="4-the-cffglplugininfo-declaration">4. The <code>CFFGLPluginInfo</code> declaration</h2>
+<p>Every plugin file declares a single static <code>CFFGLPluginInfo</code>. This is the manifest Resolume reads at scan time.</p>
+<pre><code class="lang-cpp">static CFFGLPluginInfo PluginInfo(
+    PluginFactory&lt; MyPlugin &gt;,    // Factory callback
+    "AB01",                       // Unique 4-char ID (must be globally unique)
+    "My Plugin",                  // Display name shown in Resolume
+    2,                            // FFGL API major version
+    1,                            // FFGL API minor version
+    1,                            // Your plugin major version
+    0,                            // Your plugin minor version
+    FF_EFFECT,                    // Plugin type: FF_EFFECT, FF_SOURCE, or FF_MIXER
+    "Description shown in UI",    // Description
+    "Author / About text"         // About
+);</code></pre>
+<p><strong>Critical:</strong> the <strong>4-character unique ID</strong> is what Resolume uses to persist the plugin in compositions. If you reuse an ID across two plugins, one will silently shadow the other. Pick a prefix for yourself (e.g. your initials) and don't change IDs of released plugins.</p>
+<p>Resolume's own examples use prefixes like <code>RE</code> (Resolume Effect), <code>RS</code> (Resolume Source), <code>RM</code> (Resolume Mixer) — feel free to use any 4 chars.</p>
+<hr>
+<h2 id="5-the-plugin-lifecycle">5. The plugin lifecycle</h2>
+<p>A minimal Effect plugin:</p>
+<pre><code class="lang-cpp">#pragma once
+#include &lt;FFGLSDK.h&gt;
+
+class MyPlugin : public CFFGLPlugin
+{
+public:
+    MyPlugin();
+
+    FFResult InitGL( const FFGLViewportStruct* vp ) override;
+    FFResult ProcessOpenGL( ProcessOpenGLStruct* pGL ) override;
+    FFResult DeInitGL() override;
+
+    FFResult SetFloatParameter( unsigned int idx, float value ) override;
+    float    GetFloatParameter( unsigned int idx ) override;
+
+private:
+    ffglex::FFGLShader     shader;
+    ffglex::FFGLScreenQuad quad;
+    float                  brightness;
+};</code></pre>
+<p><strong>Lifecycle order</strong></p>
+<ol>
+<li><strong>Constructor</strong> — declare parameters with <code>SetParamInfof(...)</code>. Don't touch GL here.</li>
+<li><strong><code>InitGL</code></strong> — compile shaders, create GL objects. Called once when the plugin enters a clip.</li>
+<li><strong><code>ProcessOpenGL</code></strong> — called every frame. Bind input textures, set uniforms, draw.</li>
+<li><strong><code>DeInitGL</code></strong> — release GL resources. Called when the plugin leaves the clip.</li>
+</ol>
+<h3 id="processopengl-rules"><code>ProcessOpenGL</code> rules</h3>
+<ul>
+<li>The host expects you to return the <strong>GL context in its default state</strong>. Use the SDK's RAII helpers (<code>ScopedShaderBinding</code>, <code>Scoped2DTextureBinding</code>, <code>ScopedSamplerActivation</code>) to guarantee that.</li>
+<li>For Effects, input texture is at <code>pGL-&amp;gt;inputTextures[0]</code>. For Mixers, dest is <code>[0]</code> and source is <code>[1]</code>. For Sources, no inputs.</li>
+<li>Texture coordinates are <strong>non-normalized</strong> in FFGL. Use <code>GetMaxGLTexCoords(...)</code> to fetch the active region of the input texture and pass it as a uniform.</li>
+<li><strong>Premultiplied alpha:</strong> Resolume's video pipeline operates on premultiplied colors. If your effect operates on RGB, <strong>un-premultiply first, apply, then re-premultiply</strong> (see <code>AddSubtract</code> example).</li>
+</ul>
+<pre><code class="lang-glsl">// Un-premultiply
+if( color.a &gt; 0.0 ) color.rgb /= color.a;
+// ... your effect ...
+// Re-premultiply, clamp
+color.rgb = clamp( color.rgb * color.a, vec3(0.0), vec3(color.a) );
+fragColor = color;</code></pre>
+<hr>
+<h2 id="6-parameter-types">6. Parameter types</h2>
+<p>Declared in the constructor with <code>SetParamInfof(idx, "Name", FF_TYPE_*)</code>. Resolume binds these to its UI automatically.</p>
+<table>
+<thead><tr>
+<th>Constant</th>
+<th>UI shown</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FF_TYPE_STANDARD</code></td>
+<td>Slider 0–1</td>
+<td>Default for floats</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_BOOLEAN</code></td>
+<td>Toggle</td>
+<td>0 / 1</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_EVENT</code></td>
+<td>Button</td>
+<td>Momentary — value pulses to 1 then back to 0</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_INTEGER</code></td>
+<td>Integer slider</td>
+<td>Use <code>SetParamRange()</code> to set min/max</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_OPTION</code></td>
+<td>Dropdown</td>
+<td>Define choices with <code>SetParamElementInfo(idx, n, "Label", value)</code></td>
+</tr>
+<tr>
+<td><code>FF_TYPE_TEXT</code></td>
+<td>Text input</td>
+<td>Use <code>SetTextParameter</code> / <code>GetTextParameter</code></td>
+</tr>
+<tr>
+<td><code>FF_TYPE_FILE</code></td>
+<td>File picker</td>
+<td>Initial value supported in FFGL 2.2 + Resolume 7.2</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_BUFFER</code></td>
+<td>Internal</td>
+<td>For host-supplied data (e.g. FFT)</td>
+</tr>
+</tbody></table>
+<h3 id="color-components">Color components</h3>
+<p>For a single color picker, declare a <strong>group of 3 (RGB) or 4 (RGBA) consecutive parameters</strong> with these types:</p>
+<table>
+<thead><tr>
+<th>Constant</th>
+<th>Channel</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FF_TYPE_RED</code></td>
+<td>R</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_GREEN</code></td>
+<td>G</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_BLUE</code></td>
+<td>B</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_ALPHA</code></td>
+<td>A (also pairs after HSB)</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_HUE</code></td>
+<td>H</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_SATURATION</code></td>
+<td>S</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_BRIGHTNESS</code></td>
+<td>B (brightness, not blue)</td>
+</tr>
+</tbody></table>
+<p>Resolume detects consecutive RGB/RGBA or HSB/HSBA blocks and shows them as a single color picker.</p>
+<h3 id="position-components-separate-from-color">Position components (separate from color)</h3>
+<p>Position channels are NOT color components — Resolume groups consecutive <code>XPOS</code>/<code>YPOS</code> as a 2D position picker:</p>
+<table>
+<thead><tr>
+<th>Constant</th>
+<th>Channel</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FF_TYPE_XPOS</code></td>
+<td>x position</td>
+</tr>
+<tr>
+<td><code>FF_TYPE_YPOS</code></td>
+<td>y position</td>
+</tr>
+</tbody></table>
+<pre><code class="lang-cpp">// In constructor
+SetParamInfof( PT_RED,   "Tint Red",   FF_TYPE_RED );
+SetParamInfof( PT_GREEN, "Tint Green", FF_TYPE_GREEN );
+SetParamInfof( PT_BLUE,  "Tint Blue",  FF_TYPE_BLUE );
+// → shown as one RGB color picker</code></pre>
+<h3 id="param-groups-ffgl-22-resolume-73">Param groups (FFGL 2.2+, Resolume 7.3+)</h3>
+<p>Group several params under a collapsable section:</p>
+<pre><code class="lang-cpp">SetParamGroup( PT_HUE,   "Tint" );
+SetParamGroup( PT_SAT,   "Tint" );
+SetParamGroup( PT_BRI,   "Tint" );</code></pre>
+<hr>
+<h2 id="7-the-ffglquickstart-shortcut-layer">7. The <code>ffglquickstart</code> shortcut layer</h2>
+<p>The SDK ships a higher-level wrapper at <code>source/lib/ffglquickstart/</code> that auto-builds a fragment shader from your declared params and ships values to it on each frame. Inherit from <code>ffglqs::Effect</code>, <code>ffglqs::Source</code>, or <code>ffglqs::Mixer</code>:</p>
+<pre><code class="lang-cpp">#include &lt;FFGLSDK.h&gt;
+
+class MyEffect : public ffglqs::Effect
+{
+public:
+    MyEffect()
+    {
+        AddParam( ffglqs::Param::Create( "Brightness", 0.5f ) );
+    }
+};</code></pre>
+<p>The shader you write only needs to declare matching uniforms — <code>ffglquickstart</code> auto-injects the boilerplate.</p>
+<p>For full control or unusual layouts, drop down to plain <code>CFFGLPlugin</code>.</p>
+<hr>
+<h2 id="8-useful-sdk-utilities">8. Useful SDK utilities</h2>
+<p>In <code>ffglex</code> (auto-included via <code>FFGLSDK.h</code>):</p>
+<table>
+<thead><tr>
+<th>Helper</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>FFGLShader</code></td>
+<td>Compile vert+frag, find uniforms, set values</td>
+</tr>
+<tr>
+<td><code>FFGLScreenQuad</code></td>
+<td>Pre-baked full-screen quad with positions and UVs</td>
+</tr>
+<tr>
+<td><code>ScopedShaderBinding</code></td>
+<td>RAII bind a shader; restores previous on scope exit</td>
+</tr>
+<tr>
+<td><code>Scoped2DTextureBinding</code></td>
+<td>RAII bind a texture</td>
+</tr>
+<tr>
+<td><code>ScopedSamplerActivation</code></td>
+<td>RAII active texture unit</td>
+</tr>
+<tr>
+<td><code>FFGLLog::LogToHost</code></td>
+<td>Send messages to Resolume's log file (FFGL 2.2+)</td>
+</tr>
+<tr>
+<td><code>GetMaxGLTexCoords</code></td>
+<td>Returns the active s,t region of an input texture</td>
+</tr>
+</tbody></table>
+<p>In <code>ffglqs</code> (quickstart):</p>
+<table>
+<thead><tr>
+<th>Helper</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Param::Create</code></td>
+<td>Standard 0–1 param</td>
+</tr>
+<tr>
+<td><code>ParamRange::Create</code></td>
+<td>Param with custom min/max</td>
+</tr>
+<tr>
+<td><code>ParamOption::Create</code></td>
+<td>Dropdown</td>
+</tr>
+<tr>
+<td><code>ParamText::Create</code></td>
+<td>Text input</td>
+</tr>
+<tr>
+<td><code>ParamTrigger::Create</code></td>
+<td>Momentary button</td>
+</tr>
+<tr>
+<td><code>ParamFFT::Create</code></td>
+<td>Receives audio FFT buffer from host</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="9-audio-reactivity">9. Audio reactivity</h2>
+<p>To respond to sound, declare an <code>FFT</code> param. The host fills it with frequency-domain audio data each frame:</p>
+<pre><code class="lang-cpp">// In constructor
+auto fftParam = ffglqs::ParamFFT::Create( "Audio FFT", 16 );
+AddParam( fftParam );</code></pre>
+<p>The 16 bins map to the host's audio analysis. Read the bin values in <code>Update()</code> and pass them to your shader as a <code>uniform float[16]</code> or similar.</p>
+<hr>
+<h2 id="10-value-change-events-master-branch-resolume-74">10. Value-change events (master branch / Resolume 7.4+)</h2>
+<p>Plugins can change their own parameters and notify the host. Useful for randomize buttons or generative effects. The plugin updates its internal value, then signals the host with <code>RaiseParamEvent</code> so the host re-reads via <code>GetFloatParameter</code>:</p>
+<pre><code class="lang-cpp">// After computing a new value internally
+brightness = newValue;
+RaiseParamEvent( PT_BRIGHTNESS, FF_EVENT_FLAG_VALUE );
+// Resolume re-reads the param and updates the UI / OSC subscribers</code></pre>
+<p><code>PT_BRIGHTNESS</code> here is your own parameter index (the same enum slot you passed to <code>SetParamInfof</code>). See <code>source/plugins/Events/FFGLEvents.cpp</code> for a complete example covering randomize, dynamic option lists, and display-name updates.</p>
+<blockquote>This API lives on <code>CFFGLPluginManager</code> and is available on the master branch (Resolume 7.4+ for value events, 7.4.1+ for dynamic option elements). FFGL 2.3 specifically only added dynamic display names.</blockquote>
+<hr>
+<h2 id="11-embedded-thumbnails-ffgl-21">11. Embedded thumbnails (FFGL 2.1+)</h2>
+<p>Source plugins can embed a <strong>160×120 RGBA</strong> preview that Resolume shows in the source picker. Unlike a separate file, the thumbnail is declared as a static <code>CFFGLThumbnailInfo</code> next to your <code>CFFGLPluginInfo</code>:</p>
+<pre><code class="lang-cpp">static const unsigned char thumbPixels[ 160 * 120 * 4 ] = {
+    /* 160x120 RGBA, row-major */
+};
+
+static CFFGLThumbnailInfo ThumbnailInfo( 160, 120, thumbPixels );</code></pre>
+<p>The pixels can be generated at compile time from a real PNG (the <code>CustomThumbnail</code> example shows one approach using a header generated from an image). See <code>source/plugins/CustomThumbnail/</code> for the full pattern.</p>
+<hr>
+<h2 id="12-top-left-texture-orientation-ffgl-22-resolume-731">12. Top-left texture orientation (FFGL 2.2+ / Resolume 7.3.1+)</h2>
+<p>Resolume internally uses bottom-left orientation but can flip on demand. Opt your plugin into top-left and avoid double-flips by passing <code>true</code> to the base constructor and querying orientation each frame:</p>
+<pre><code class="lang-cpp">class MyPlugin : public CFFGLPlugin
+{
+public:
+    MyPlugin() : CFFGLPlugin( /*supportTopLeftTextureOrientation=*/ true ) {}
+
+    FFResult ProcessOpenGL( ProcessOpenGLStruct* pGL ) override
+    {
+        bool topLeft = GetTextureOrientation() == TextureOrientation::TOP_LEFT;
+        // adjust UVs accordingly
+    }
+};</code></pre>
+<p><code>TextureOrientation</code> is a scoped enum on <code>CFFGLPluginManager</code> with values <code>TOP_LEFT</code> and <code>BOTTOM_LEFT</code>.</p>
+<hr>
+<h2 id="13-installation-paths-release-builds">13. Installation paths (release builds)</h2>
+<p>The official FFGL SDK quickstart points to a <strong>product-agnostic</strong> location:</p>
+<table>
+<thead><tr>
+<th>Platform</th>
+<th>Path (per SDK README)</th>
+</tr></thead><tbody>
+<tr>
+<td>macOS</td>
+<td><code>~/Documents/Resolume/Extra Effects/</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>%USERPROFILE%\Documents\Resolume\Extra Effects\</code></td>
+</tr>
+</tbody></table>
+<p>Resolume's own directory list, however, organizes user files <strong>per product</strong> (<code>Resolume Arena</code> / <code>Resolume Avenue</code>):</p>
+<table>
+<thead><tr>
+<th>Platform</th>
+<th>Per-product location</th>
+</tr></thead><tbody>
+<tr>
+<td>macOS</td>
+<td><code>~/Documents/Resolume Arena/Extra Effects/</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>%USERPROFILE%\Documents\Resolume Arena\Extra Effects\</code></td>
+</tr>
+</tbody></table>
+<p>In practice both forms are scanned on most installs. The product-named folder is what Resolume creates the first time you launch it. Use that for dual-host plugins (drop the same <code>.bundle</code> / <code>.dll</code> into both <code>Resolume Arena/Extra Effects/</code> and <code>Resolume Avenue/Extra Effects/</code>).</p>
+<blockquote>Resolume scans on launch; a restart is required after copying.</blockquote>
+<hr>
+<h2 id="14-debugging">14. Debugging</h2>
+<ol>
+<li><strong><code>FFGLLog::LogToHost("...")</code></strong> — appears in Resolume's log (<code>~/Library/Logs/Resolume Arena/</code> or <code>%LOCALAPPDATA%\Resolume Arena\Logs\</code>). FFGL 2.2+.</li>
+<li><strong>Attach debugger</strong> — Visual Studio: Debug → Attach to Process → <code>Arena.exe</code>. Xcode: Debug → Attach to Process.</li>
+<li><strong>Validation in debug builds</strong> — FFGL 2.2 added context-state validation. If you forget to restore GL state, the SDK will tell you what to fix.</li>
+<li><strong><code>glGetError()</code> after each call</strong> during development — FFGL itself does not.</li>
+</ol>
+<hr>
+<h2 id="15-common-pitfalls">15. Common pitfalls</h2>
+<ol>
+<li><strong>Plugin doesn't appear</strong> — wrong unique ID (collision), wrong target architecture (Apple Silicon), or built as Debug into a Release Resolume install path.</li>
+<li><strong>Black output</strong> — Often a missing <code>Scoped*</code> binding leaving the wrong texture active. Use the RAII helpers.</li>
+<li><strong>Crash on second clip</strong> — Resources allocated in the constructor instead of <code>InitGL</code>. Move all GL allocation into <code>InitGL</code>.</li>
+<li><strong>Colors wrong</strong> — Forgot to un-premultiply / re-premultiply RGB in the fragment shader.</li>
+<li><strong>UVs wrong on resize</strong> — Hardcoded <code>vec2(1.0)</code> for <code>MaxUV</code>. Fetch with <code>GetMaxGLTexCoords</code> each frame.</li>
+<li><strong>Plugin loads but shaders don't compile</strong> — Check Resolume log; you'll see GLSL compiler errors. Most common: GLSL 410 vs 330 mismatch.</li>
+</ol>
+<hr>
+<h2 id="16-distribution">16. Distribution</h2>
+<p>Resolume runs an official plugin marketplace. Third-party plugins are typically distributed as:</p>
+<ul>
+<li>A single <code>.bundle</code> (mac) or <code>.dll</code> (win) zipped with a README.</li>
+<li>Or a Resolume <code>.rfx</code> / <code>.rsx</code> archive (zip with metadata).</li>
+<li>Universal builds for Mac (Apple Silicon + Intel).</li>
+<li>Code signing recommended on macOS (notarization not strictly required for plugins but increasingly expected).</li>
+</ul>
+<hr>
+<h2 id="sources">Sources</h2>
+<ul>
+<li><a href="https://github.com/resolume/ffgl">github.com/resolume/ffgl</a> — official FFGL SDK</li>
+<li><a href="https://github.com/resolume/ffgl/wiki">github.com/resolume/ffgl/wiki</a> — wiki: tutorials and API notes</li>
+<li><code>FFGL.h</code> header — authoritative comments on each FFGL version's additions</li>
+<li><a href="https://github.com/cyrilcode/ffglplugin-examples">github.com/cyrilcode/ffglplugin-examples</a> — community examples</li>
+<li><a href="https://github.com/flyingrub/ffgl/tree/more">github.com/flyingrub/ffgl/tree/more</a> — extra examples linked from the official README</li>
+</ul>
+</main>
+</div>
+</body>
+</html>
